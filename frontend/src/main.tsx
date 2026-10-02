@@ -1,5 +1,4 @@
-// Mounts the host UI; shared state and preview inspection do not belong to the React entry point.
-import { createRoot } from "react-dom/client";
-import { App } from "./ui/App";
+// Boots the temporary M1 host harness; the product React shell returns when M3 builds the board.
+import { startHarness } from "./harness";
 
-createRoot(document.getElementById("root")!).render(<App />);
+startHarness();

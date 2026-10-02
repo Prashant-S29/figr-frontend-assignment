@@ -48,6 +48,7 @@ frontend/src/
   stores/              board, selection, layers, inspector (plain TS; React only reads)
   api/                 fetch + validation for /screens and /elements/:key
   ui/                  React components, hooks, CSS
+  harness/             disposable M1 host/protocol probes; replaced in M3
 frontend/e2e/          the five Playwright tests
 scripts/               build and start scripts
 ```
@@ -68,6 +69,8 @@ scripts/               build and start scripts
 Names are fixed; M0 creates them.
 `npm start` (production build + backend, what graders run), `npm run dev`, `npm run build`, `npm run build:agent`, `npm run typecheck`, `npm test` (unit), `npm run test:e2e`.
 Install with `npm ci` (Node 18+). Both production and development hosts use **http://localhost:5173**; API is **http://localhost:4000**, and preview pages are **http://localhost:4001**. These are distinct origins. Vite 6 preserves Node 18 compatibility. Host startup fails rather than silently choosing a different port.
+
+The app currently boots the disposable M1 harness (one 1280×800 sandboxed preview, page/mode controls and text-only protocol probes). It is not the product board and is replaced in M3. The overlay focuses only its own neutral closed-shadow surface on Select clicks so shortcuts stay inside the iframe; it never focuses page controls. Initial discovery hello targets parent with `*` because iframe navigation changes the referrer; the host authenticates the actual iframe source and page origin before transferring the private port.
 
 `npm start` builds and serves `frontend/dist/` with Vite preview alongside the fixed backend. `npm run dev` runs Vite's development server, the backend, and the agent build watcher. `npm run build` typechecks and builds both host and agent. Unit tests live in `frontend/tests/` (introduced in M2); the five end-to-end checks live in `frontend/e2e/` (introduced in M10). `npm test` currently has no test cases; no product behaviour is verified by that empty run.
 

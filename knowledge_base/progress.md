@@ -3,14 +3,14 @@
 Update at the start and end of every milestone, and whenever a decision, gate or limitation appears. Keep entries short and factual.
 
 ## Now
-- **Current milestone:** M1 (not started); M0 is done
-- **Next action:** build the throwaway host harness and agent, then run the D4 overlay gate in Chrome and Firefox before any product UI
+- **Current milestone:** M1 (in progress); M0 is done
+- **Next action:** commit the verified agent/harness and deterministic bundle, then mark M1 done
 
 ## Milestones
 | ID | Name | Status | Verified (what, when) |
 |---|---|---|---|
 | M0 | Scaffold and baseline | done | 2026-10-03: fresh clone + `npm ci` + `npm start`; Chrome rendered the production shell, API returned 24 screens, all 7 pages and agent asset returned 200. Typecheck/build passed; empty unit run exited 0. Protected backend diff empty; only generated `agent.js` added under pages. |
-| M1 | Agent core and D4 gate | not started | |
+| M1 | Agent core and D4 gate | in progress | 2026-10-03: complete gate + keyboard/native-capture/transport probes passed Chrome and Firefox (`2 passed`, 2.3m). Awaiting final clean-build/commit check. |
 | M2 | Failure core | not started | |
 | M3 | Board and previews | not started | |
 | M4 | Hover and selection | not started | |
@@ -25,7 +25,7 @@ Update at the start and end of every milestone, and whenever a decision, gate or
 Status values: `not started`, `in progress`, `blocked`, `done`.
 
 ## Gates
-- **D4 overlay gate (M1):** pending. Chrome: ___. Firefox: ___. If it fails, record the fallback here and amend PRD D4 before continuing.
+- **D4 overlay gate (M1):** **PASS**, 2026-10-03. Chrome 153 and Firefox 155: disabled-button hover/click; Select blocks input focus, checkbox changes, links and the crash button; Interact restores native actions; nested scrolling/chaining and sticky header/th hit-testing; Ctrl/Cmd-wheel forwarding. Overlay-only focus fixes V/I/Enter/Tab after iframe clicks. No overlay fallback needed; D4's focus clarification was owner-approved.
 
 ## Decision log
 Append only. Anything that changes a PRD `D*` item, the protocol, or adds a dependency goes here before it is built.
@@ -36,14 +36,19 @@ Append only. Anything that changes a PRD `D*` item, the protocol, or adds a depe
 | 2 | 2026-10-03 | Page errors are reported once each with `region: "preview"` | Brief is silent; badge is a failure display | badge only | M3 |
 | 3 | 2026-10-03 | Owner approved `@types/react` and `@types/react-dom` as dev dependencies (D11) | React does not ship the definitions needed for strict TS | Hand-authored/incomplete React definitions | M0 |
 | 4 | 2026-10-03 | Owner approved M0's pages gate allowing only generated `agent.js`; HTML stays untouched | Resolves the empty-pages-diff gate versus D2's committed bundle requirement | Deferring the committed bundle until M1 | M0 |
+| 5 | 2026-10-03 | Owner approved initial M1 protocol: window hello/connect with instanceId and one transferred port; private ready, mode, ping/pong, hover/select intents (minted id + name), key, zoom wheel, agent-error | D3 specifies transport but not a wire schema; shared validators establish the boundary | Ad-hoc harness messages or sending DOM references | M1 |
+| 6 | 2026-10-03 | Owner approved fixing navigation discovery: hello targets parent with `*`; bootstrap requires the actual parent source; host validates iframe source/page origin before transferring the port | Referrer after iframe navigation is the previous page, not the host; hello carries no DOM data and all later traffic is private | Referrer-derived parent origin | M1 |
+| 7 | 2026-10-03 | Owner approved D4 clarification: Select pointer-down focuses only the neutral agent surface in its closed shadow root with `preventScroll`, not page controls | Pointer-default cancellation otherwise leaves host toolbar focus and loses iframe shortcuts | Leaving focus in host controls or focusing page inputs | M1 |
 
 ## Known limitations
 Feeds the README "where this breaks". Add as discovered: what breaks, when, and why.
 
-_None recorded yet._
+_No unresolved M1 gate defects. Navigation discovery and overlay keyboard focus were fixed and verified in both browsers._
+
+- Native Interact scrolling follows the browser's gesture rules: Firefox can latch a wheel transaction to the nested container for 1500ms, so outward chaining at its boundary requires a new gesture. Select-mode emulation consumes the remainder immediately. This is native browser behavior, not an overlay fallback.
 
 ## Open questions for the owner
-_None yet._
+_None._
 
 ## Session log
 One line per working session: what changed, what is next.
@@ -51,6 +56,9 @@ One line per working session: what changed, what is next.
 - 2026-10-03: docs written (PRD, milestones, rules, context, progress). No code yet.
 - 2026-10-03: M0 started. Imported the supplied backend, reporter and original brief unchanged; created the `baseline` tag. Owner approved React type packages and the generated-agent-only M0 pages exception.
 - 2026-10-03: M0 finished. Added the strict React/Vite scaffold, TS reporter port, deterministic esbuild agent bundle, production/development commands and separate Playwright configs. Next: M1 only.
+- 2026-10-03: M1 started; owner approved the initial transport schema. Building only the agent/overlay and disposable host; shared failure/report routing remains M2 and product UI remains M3 onward.
+- 2026-10-03: M1 gate paused per project rules after Chrome and Firefox both navigated page 2 → page 1 but did not reconnect. Root cause is incorrect referrer-based parent-origin discovery after navigation. Owner approved the fix; navigation and the D4 pointer/wheel gate then passed both browsers.
+- 2026-10-03: Additional keyboard checks paused M1 again: Enter/Tab after Select clicks did not reach the iframe when host controls retained focus. Owner approved overlay-only focus; the complete gate and transport probes then passed both browsers. Temporary verification lives at `/tmp/figr-m1-gate/` (not in the five product E2E suite). Chrome uses agent-browser input/inspection, with coordinate-accurate native wheel events supplied over CDP because agent-browser 0.27 wheel targets host 0,0; Firefox uses the Playwright runner and a new native wheel gesture after its 1500ms target latch.
 
 ## M0 verification evidence
 
@@ -62,4 +70,19 @@ One line per working session: what changed, what is next.
 - Development smoke: `npm run dev` served the shell with `/@vite/client` and the API with 24 screens. In the disposable clone only, an agent content change was reflected in the served bundle by the watcher; restoring the entry restored the identical committed bundle. A timestamp-only probe was inconclusive because unchanged generated content is not rewritten; the content-change probe verified the watcher. Both clone and working repository were clean afterwards; verification processes were stopped.
 - `npm run typecheck`, `npm run build`, and `npm run build:agent` succeeded. `npm test` exited 0 with **zero tests**; unit cases start in M2 and the five product checks in M10. No feature behaviour is claimed by this run.
 - `git diff baseline -- backend/server.js backend/data 'backend/pages/*.html'` was empty. `git diff --name-status baseline -- backend/pages` showed only `A backend/pages/agent.js`. Regenerating the agent left git clean.
-- Scope: the host is intentionally an empty shell and the agent is an empty IIFE. No protocol, script injection, overlay, board, layers, inspector, or failure core has been implemented yet.
+- M0 scope at completion: the host was intentionally an empty shell and the agent an empty IIFE. No protocol, script injection, overlay, board, layers, inspector, or failure core had been implemented yet.
+
+## M1 verification evidence
+
+- Implementation: `shared/protocol.ts` validates the approved hello/connect and private commands/intents. `agent/src/native.ts` captures depended-on browser operations at startup. The closed-shadow overlay sits outside the page body, hit-tests beneath itself, isolates Select pointer input, focuses only its own neutral surface, emulates nearest-container wheel scrolling with outward remainder chaining, and forwards shortcut/zoom intents. Ids are currently stable by node reference only; M5 adds reconciliation.
+- Host: disposable `frontend/src/harness/`, with one 1280×800 sandboxed preview, fixed `screenId: m1-preview`, text-only probes, source/origin-authenticated bootstrap, port replacement, heartbeat and a 10s response deadline. The React product shell is reserved for M3. This harness displays probe errors but does not implement M2's fail/report core or the product failure UI; nothing calls `report()`.
+- Full gate: `npx playwright test --config /tmp/figr-m1-gate/playwright.config.ts` reported **2 passed (2.3m)** using Google Chrome `153.0.8010.47` (agent-browser session `figr-m1`, browser-tooling iframe observations and coordinate-accurate native CDP wheel input) and Playwright Firefox `155.0` (build `1543`). These are temporary milestone probes outside `frontend/e2e/`, not extra product tests. Firefox installation succeeded on the fallback download mirror after the first mirror timed out.
+- Page 2, both browsers: disabled submit hovered/clicked with the same minted id and remained disabled; Select clicks did not focus page controls, toggle checkbox, navigate links or submit. Background hover was null. In Interact the input accepted text, editable `i` did not switch modes, checkbox toggled and Log in navigated to page 1 with a new ready instance.
+- Page 1, both browsers: hash link retained the instance. Crash button generated no page exception in Select and exactly one expected TypeError in Interact. V/I worked after preview clicks. After the focus fix, Enter/Tab after Select clicks were forwarded to the host.
+- Page 3, both browsers: first 100px Select wheel scrolled the inner orders area to 100 while page scroll stayed 0; an 800px wheel reached its exact scroll limit and consumed the remainder in the page. Sticky page header and nested sticky `th` remained topmost hit/click targets. Interact used native inner/page scrolling; Firefox needed a new wheel transaction for native chaining. Ctrl-wheel in Select and Cmd-wheel in Interact reached the host without scrolling; Select zoom cleared hover.
+- Native captures: replacing the page's `document.elementsFromPoint`, `window.getComputedStyle`, and `Element.prototype.scrollBy` with throwing functions did not break the agent's hit-testing/scrolling or add a page exception.
+- Transport: shape-valid hello from the wrong window source was ignored; bootstrap from the real parent replaced the agent port; malformed mode on that private connection produced `agent-error: Invalid host message` without throwing into the page. The displaced harness port received no pong and reached its 10s deadline; Reload established a fresh working instance and ping/pong recovered.
+- Verification-tool corrections (not product fixes): agent-browser's decimal mouse coordinates were rounded; its wheel input was observed landing on the host at `(0,0)` and replaced with coordinate-accurate native CDP input. The temporary gate runner was moved out of `test-results/` because the unit runner clears that output directory. No assertions were skipped, no dependency was added, and no product E2E case was changed.
+- `npm run typecheck`, `npm run build`, `npm test` and the agent build passed. Unit command still contains zero cases (M2); the five product checks still belong to M10. Screenshots: `/tmp/figr-m1-chrome-agent-browser.png`, `/tmp/figr-m1-firefox.png` (local artifacts).
+- Protected inputs: server/data diff from `baseline` is empty. For each of seven HTML files, removing the single first-head `<script src="/agent.js"></script>` restored byte-for-byte baseline content. Only that tag and generated `agent.js` changed under the pages directory.
+- Scope deliberately deferred: product board/outlines/selection, render reconciliation, layers/inspector, page-error badges and shared failure/report handling. No M2 or later feature work was started.

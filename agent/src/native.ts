@@ -1,0 +1,23 @@
+// Captures browser operations before page scripts execute; it does not inspect DOM or own agent state.
+export const native = {
+  createElement: document.createElement.bind(document),
+  elementsFromPoint: document.elementsFromPoint.bind(document),
+  getComputedStyle: window.getComputedStyle.bind(window),
+  scrollWindow: window.scrollBy.bind(window),
+  postParent: window.parent.postMessage.bind(window.parent),
+  randomUUID: crypto.randomUUID.bind(crypto),
+  addListener: EventTarget.prototype.addEventListener,
+  appendChild: Node.prototype.appendChild,
+  attachShadow: Element.prototype.attachShadow,
+  getAttribute: Element.prototype.getAttribute,
+  matches: Element.prototype.matches,
+  focusElement: HTMLElement.prototype.focus,
+  setStyle: CSSStyleDeclaration.prototype.setProperty,
+  scrollElement: Element.prototype.scrollBy as (this: Element, options: ScrollToOptions) => void,
+  preventDefault: Event.prototype.preventDefault,
+  stopImmediate: Event.prototype.stopImmediatePropagation,
+  eventPath: Event.prototype.composedPath,
+  portPost: MessagePort.prototype.postMessage,
+  portStart: MessagePort.prototype.start,
+  portClose: MessagePort.prototype.close,
+};
