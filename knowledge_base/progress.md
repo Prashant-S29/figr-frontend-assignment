@@ -3,13 +3,13 @@
 Update at the start and end of every milestone, and whenever a decision, gate or limitation appears. Keep entries short and factual.
 
 ## Now
-- **Current milestone:** M0 (in progress)
-- **Next action:** scaffold and verify the production build/run pipeline against the imported kit
+- **Current milestone:** M1 (not started); M0 is done
+- **Next action:** build the throwaway host harness and agent, then run the D4 overlay gate in Chrome and Firefox before any product UI
 
 ## Milestones
 | ID | Name | Status | Verified (what, when) |
 |---|---|---|---|
-| M0 | Scaffold and baseline | in progress | Untouched kit imported from `/home/prashantsingh/prashant_workspace/gigs/figr`; `baseline` tags commit `c745ebd`. |
+| M0 | Scaffold and baseline | done | 2026-10-03: fresh clone + `npm ci` + `npm start`; Chrome rendered the production shell, API returned 24 screens, all 7 pages and agent asset returned 200. Typecheck/build passed; empty unit run exited 0. Protected backend diff empty; only generated `agent.js` added under pages. |
 | M1 | Agent core and D4 gate | not started | |
 | M2 | Failure core | not started | |
 | M3 | Board and previews | not started | |
@@ -50,3 +50,16 @@ One line per working session: what changed, what is next.
 
 - 2026-10-03: docs written (PRD, milestones, rules, context, progress). No code yet.
 - 2026-10-03: M0 started. Imported the supplied backend, reporter and original brief unchanged; created the `baseline` tag. Owner approved React type packages and the generated-agent-only M0 pages exception.
+- 2026-10-03: M0 finished. Added the strict React/Vite scaffold, TS reporter port, deterministic esbuild agent bundle, production/development commands and separate Playwright configs. Next: M1 only.
+
+## M0 verification evidence
+
+- Baseline: `c745ebd` imports the untouched kit from `/home/prashantsingh/prashant_workspace/gigs/figr`; original README preserved as `knowledge_base/reference/assignment-brief.md`. Scaffold commit: `268ebdf`.
+- Environment: Node `v22.21.1`, npm `10.9.4`, Google Chrome `153.0.8010.47`, using `npx agent-browser` as external verification tooling (not a project dependency).
+- Clean clone: `/tmp/figr-m0-clean-clone`, created with `git clone --no-hardlinks`. `npm ci` succeeded; `npm start` built the agent and production host, then served host `:5173`, API `:4000`, pages `:4001`.
+- Real Chrome: `http://localhost:5173` rendered the `Figr Viewer` heading in `[data-testid="app"]`; host HTML referenced `/assets/`, not `/@vite/client`. No browser errors observed. Screenshot: `/tmp/figr-m0-production.png` (local verification artifact).
+- Browser fetches: `/screens` returned 24 valid entries with 24 unique ids and 6 unique page URLs. All 7 HTML pages and `/agent.js` returned 200 from `:4001`. No HTML included the agent tag. Direct navigation to page 2 showed the original disabled submit button. This verifies delivery, not the M1 overlay gate.
+- Development smoke: `npm run dev` served the shell with `/@vite/client` and the API with 24 screens. In the disposable clone only, an agent content change was reflected in the served bundle by the watcher; restoring the entry restored the identical committed bundle. A timestamp-only probe was inconclusive because unchanged generated content is not rewritten; the content-change probe verified the watcher. Both clone and working repository were clean afterwards; verification processes were stopped.
+- `npm run typecheck`, `npm run build`, and `npm run build:agent` succeeded. `npm test` exited 0 with **zero tests**; unit cases start in M2 and the five product checks in M10. No feature behaviour is claimed by this run.
+- `git diff baseline -- backend/server.js backend/data 'backend/pages/*.html'` was empty. `git diff --name-status baseline -- backend/pages` showed only `A backend/pages/agent.js`. Regenerating the agent left git clean.
+- Scope: the host is intentionally an empty shell and the agent is an empty IIFE. No protocol, script injection, overlay, board, layers, inspector, or failure core has been implemented yet.
