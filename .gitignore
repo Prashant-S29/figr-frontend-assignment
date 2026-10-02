@@ -1,0 +1,6 @@
+# Ignore local dependencies and verification artifacts, not the committed agent bundle.
+node_modules/
+frontend/dist/
+playwright-report/
+test-results/
+.DS_Store

@@ -48,7 +48,7 @@ Not up for re-litigation while building. A change needs a logged reason in `prog
 - **D8 Tree state:** each row is exactly one of `Loading | Loaded(children) | Error`, replaced whole, never appended. One in-flight request per row (re-expanding reuses it). Search is a derived view; it never mutates expanded state. Fixed row height, no virtualization.
 - **D9 Iframes:** `sandbox="allow-scripts allow-same-origin allow-forms"`, no top-navigation, no modals.
 - **D10 Run mode:** `npm start` serves a **production build** plus the backend. `npm run dev` is for development only.
-- **D11 Dependencies:** `react`, `react-dom`, `vite`, `esbuild`, `typescript`, `concurrently`, `@playwright/test` (dev). Anything else needs a logged reason.
+- **D11 Dependencies:** `react`, `react-dom`, `vite`, `esbuild`, `typescript`, `concurrently`, `@playwright/test` (dev), `@types/react` and `@types/react-dom` (dev; owner-approved in M0 for strict TypeScript). Anything else needs a logged reason.
 
 ## 4. Requirements
 

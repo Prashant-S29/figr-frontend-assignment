@@ -1,9 +1,31 @@
 {
   "name": "figr-frontend-assignment",
   "private": true,
-  "description": "Starter kit for the Figr frontend engineer assignment",
-  "engines": { "node": ">=18" },
+  "description": "Figr Viewer: a cross-origin preview board",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
-    "backend": "node backend/server.js"
+    "backend": "node backend/server.js",
+    "start": "npm run build && concurrently --kill-others --names backend,host \"npm run backend\" \"vite preview --config vite.config.mjs\"",
+    "dev": "npm run build:agent && concurrently --kill-others --names backend,agent,host \"npm run backend\" \"npm run build:agent -- --watch\" \"vite --config vite.config.mjs\"",
+    "build": "npm run typecheck && npm run build:agent && vite build --config vite.config.mjs",
+    "build:agent": "node scripts/build-agent.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "playwright test --config playwright.unit.config.ts --pass-with-no-tests",
+    "test:e2e": "playwright test --config playwright.config.ts"
+  },
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "concurrently": "^9.2.4",
+    "esbuild": "^0.25.12",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.3"
   }
 }

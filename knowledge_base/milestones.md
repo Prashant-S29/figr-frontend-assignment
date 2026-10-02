@@ -24,7 +24,7 @@ How to use this file:
   **Done when:**
 - `npm start` on a clean clone serves the app and both backend ports.
 - `git diff baseline -- backend/server.js backend/data` is empty.
-- `git diff baseline -- backend/pages` is empty (script tags come in M1).
+- `git diff baseline -- backend/pages` contains only the generated `agent.js` addition; all page HTML is unchanged (script tags come in M1). Owner-approved M0 clarification.
 
 ## M1 Agent core and the D4 gate
 

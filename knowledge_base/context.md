@@ -35,11 +35,11 @@ Browser tab
 
 ## Intended repository layout
 
-M0 creates this. If reality diverges, fix this section in the same commit.
+M0 establishes the build/run scaffold. Feature directories below are added as their milestones need them. If reality diverges, fix this section in the same commit.
 
 ```
 AGENTS.md
-docs/                  context, rules, prd, milestones, progress; reference/ is read-only
+knowledge_base/        context, rules, prd, milestones, progress; reference/ is read-only
 backend/               FIXED. server.js, data/, pages/*.html; pages/agent.js is a committed build output
 agent/src/             in-page agent (TS); bundled by esbuild into backend/pages/agent.js
 shared/                protocol message types and validators, imported by both agent and host
@@ -67,7 +67,9 @@ scripts/               build and start scripts
 
 Names are fixed; M0 creates them.
 `npm start` (production build + backend, what graders run), `npm run dev`, `npm run build`, `npm run build:agent`, `npm run typecheck`, `npm test` (unit), `npm run test:e2e`.
-App URL and ports: **M0 fills in here.**
+Install with `npm ci` (Node 18+). Both production and development hosts use **http://localhost:5173**; API is **http://localhost:4000**, and preview pages are **http://localhost:4001**. These are distinct origins. Vite 6 preserves Node 18 compatibility. Host startup fails rather than silently choosing a different port.
+
+`npm start` builds and serves `frontend/dist/` with Vite preview alongside the fixed backend. `npm run dev` runs Vite's development server, the backend, and the agent build watcher. `npm run build` typechecks and builds both host and agent. Unit tests live in `frontend/tests/` (introduced in M2); the five end-to-end checks live in `frontend/e2e/` (introduced in M10). `npm test` currently has no test cases; no product behaviour is verified by that empty run.
 
 ## Traps specific to this project
 
