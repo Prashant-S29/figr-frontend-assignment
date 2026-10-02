@@ -3,14 +3,14 @@
 Update at the start and end of every milestone, and whenever a decision, gate or limitation appears. Keep entries short and factual.
 
 ## Now
-- **Current milestone:** M1 (in progress); M0 is done
-- **Next action:** commit the verified agent/harness and deterministic bundle, then mark M1 done
+- **Current milestone:** M2 (not started); M0 and M1 are done
+- **Next action:** build the shared failure core (fail, scope/guard, region boundaries and dev-menu shell) and its browser-free unit checks
 
 ## Milestones
 | ID | Name | Status | Verified (what, when) |
 |---|---|---|---|
 | M0 | Scaffold and baseline | done | 2026-10-03: fresh clone + `npm ci` + `npm start`; Chrome rendered the production shell, API returned 24 screens, all 7 pages and agent asset returned 200. Typecheck/build passed; empty unit run exited 0. Protected backend diff empty; only generated `agent.js` added under pages. |
-| M1 | Agent core and D4 gate | in progress | 2026-10-03: complete gate + keyboard/native-capture/transport probes passed Chrome and Firefox (`2 passed`, 2.3m). Awaiting final clean-build/commit check. |
+| M1 | Agent core and D4 gate | done | 2026-10-03: full gate + keyboard/native-capture/transport probes passed Chrome and Firefox (`2 passed`, 2.3m); typecheck/build and empty unit run passed. Bundle regeneration left git clean after commit `64213d4`. |
 | M2 | Failure core | not started | |
 | M3 | Board and previews | not started | |
 | M4 | Hover and selection | not started | |
@@ -59,6 +59,7 @@ One line per working session: what changed, what is next.
 - 2026-10-03: M1 started; owner approved the initial transport schema. Building only the agent/overlay and disposable host; shared failure/report routing remains M2 and product UI remains M3 onward.
 - 2026-10-03: M1 gate paused per project rules after Chrome and Firefox both navigated page 2 → page 1 but did not reconnect. Root cause is incorrect referrer-based parent-origin discovery after navigation. Owner approved the fix; navigation and the D4 pointer/wheel gate then passed both browsers.
 - 2026-10-03: Additional keyboard checks paused M1 again: Enter/Tab after Select clicks did not reach the iframe when host controls retained focus. Owner approved overlay-only focus; the complete gate and transport probes then passed both browsers. Temporary verification lives at `/tmp/figr-m1-gate/` (not in the five product E2E suite). Chrome uses agent-browser input/inspection, with coordinate-accurate native wheel events supplied over CDP because agent-browser 0.27 wheel targets host 0,0; Firefox uses the Playwright runner and a new native wheel gesture after its 1500ms target latch.
+- 2026-10-03: M1 completed and committed as `64213d4`; deterministic agent regeneration left git clean. D4 gate is passed, both approved fixes are logged, and the harness remains disposable. Next: M2 only.
 
 ## M0 verification evidence
 
@@ -85,4 +86,5 @@ One line per working session: what changed, what is next.
 - Verification-tool corrections (not product fixes): agent-browser's decimal mouse coordinates were rounded; its wheel input was observed landing on the host at `(0,0)` and replaced with coordinate-accurate native CDP input. The temporary gate runner was moved out of `test-results/` because the unit runner clears that output directory. No assertions were skipped, no dependency was added, and no product E2E case was changed.
 - `npm run typecheck`, `npm run build`, `npm test` and the agent build passed. Unit command still contains zero cases (M2); the five product checks still belong to M10. Screenshots: `/tmp/figr-m1-chrome-agent-browser.png`, `/tmp/figr-m1-firefox.png` (local artifacts).
 - Protected inputs: server/data diff from `baseline` is empty. For each of seven HTML files, removing the single first-head `<script src="/agent.js"></script>` restored byte-for-byte baseline content. Only that tag and generated `agent.js` changed under the pages directory.
+- Committed build: `64213d4` includes the regenerated `backend/pages/agent.js`; `npm run build:agent` afterwards produced no git changes.
 - Scope deliberately deferred: product board/outlines/selection, render reconciliation, layers/inspector, page-error badges and shared failure/report handling. No M2 or later feature work was started.
