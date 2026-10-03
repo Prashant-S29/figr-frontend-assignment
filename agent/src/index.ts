@@ -1,7 +1,9 @@
-// Owns bootstrap, private-port dispatch and page-error forwarding; overlay input is delegated and all product state stays in the host.
+// Coordinates bootstrap, private commands, tracked geometry and page errors; DOM inspection stays in the agent and selection stays in the host.
 import { isConnect, isHostMessage, type AgentMessage } from "../../shared/protocol";
 import { native } from "./native";
 import { createOverlay } from "./overlay";
+import { createIdentity } from "./identity";
+import { createGeometry } from "./geometry";
 
 /** Starts only inside a preview, before page scripts can replace the browser operations we captured. */
 function start(): void {
@@ -37,16 +39,25 @@ function start(): void {
     if (port) native.portPost.call(port, message);
   }
 
+  const identity = createIdentity(instanceId);
+  const geometry = createGeometry(identity, send, failure);
   let overlay: ReturnType<typeof createOverlay>;
-  try { overlay = createOverlay(instanceId, send, protect); } catch (error) { failure(error); }
+  try { overlay = createOverlay(identity, send, protect); } catch (error) { failure(error); }
 
-  /** Rejects invalid commands before applying mode or answering a correlated liveness request. */
+  /** Validates commands and current-document identities before mode, measurements, traversal or liveness responses. */
   function command(event: Event): void {
     const message = (event as MessageEvent<unknown>).data;
     if (!isHostMessage(message)) throw new Error("Invalid host message");
     if (message.type === "mode") overlay?.setMode(message.mode);
     else if (message.type === "clear-hover") overlay?.clearHover();
-    else send({ type: "pong", requestId: message.requestId });
+    else if (message.type === "ping") send({ type: "pong", requestId: message.requestId });
+    else if (message.type === "track") {
+      if (message.elementIds.some(id => !id.startsWith(`${instanceId}:`))) throw new Error("Tracked instance mismatch");
+      geometry.track(message.revision, message.elementIds);
+    } else {
+      if (!message.elementId.startsWith(`${instanceId}:`)) throw new Error("Navigation instance mismatch");
+      send({ type: "navigate-result", requestId: message.requestId, target: identity.navigate(message.elementId, message.direction) });
+    }
   }
 
   /** Accepts only this document's bootstrap from its actual parent, then replaces the private connection. */
@@ -55,6 +66,7 @@ function start(): void {
     if (input.source !== window.parent) return;
     if (!isConnect(input.data) || input.data.instanceId !== instanceId || input.ports.length !== 1) throw new Error("Invalid agent bootstrap");
     if (port) native.portClose.call(port);
+    geometry.reset();
     port = input.ports[0];
     const connection = port;
     /** Ignores queued commands from a replaced connection rather than changing the current document mode. */

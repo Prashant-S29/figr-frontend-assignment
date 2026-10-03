@@ -1,14 +1,13 @@
 // Owns Select-mode pointer isolation, hit-testing and wheel emulation; host selection and reconciliation are not owned here.
-import type { AgentMessage, Mode, Target } from "../../shared/protocol";
+import type { AgentMessage, Mode } from "../../shared/protocol";
+import type { Identity } from "./identity";
 import { native } from "./native";
 
 /** Installs an isolated overlay and guarded input entry points without changing page-owned nodes. */
-export function createOverlay(instanceId: string, send: (message: AgentMessage) => void, protect: (handler: EventListener) => EventListener) {
+export function createOverlay(identity: Identity, send: (message: AgentMessage) => void, protect: (handler: EventListener) => EventListener) {
   const host = native.createElement("figr-agent");
   const shadow = native.attachShadow.call(host, { mode: "closed" });
   const surface = native.createElement("div");
-  const ids = new WeakMap<Element, string>();
-  let serial = 0;
   let mode: Mode = "select";
   let lastHover: string | null = null;
 
@@ -27,24 +26,9 @@ export function createOverlay(instanceId: string, send: (message: AgentMessage) 
     return native.elementsFromPoint(x, y).find(element => element !== host && element !== document.documentElement && element !== document.body) ?? null;
   }
 
-  /** Mints reference-stable ids and plain-text names; rebuilt-node reconciliation comes in M5. */
-  function describe(element: Element | null): Target | null {
-    if (!element) return null;
-    let elementId = ids.get(element);
-    if (!elementId) {
-      elementId = `${instanceId}:${++serial}`;
-      ids.set(element, elementId);
-    }
-    const tag = element.tagName.toLowerCase();
-    const label = native.getAttribute.call(element, "data-name");
-    const firstClass = native.getAttribute.call(element, "class")?.trim().split(/\s+/)[0];
-    const id = native.getAttribute.call(element, "id");
-    return { elementId, name: label ?? (firstClass ? `${tag}.${firstClass}` : id ? `${tag}#${id}` : tag) };
-  }
-
   /** Emits only changed hover intents, leaving single-board-hover ownership to the host. */
   function hover(element: Element | null): void {
-    const target = describe(element);
+    const target = identity.describe(element);
     const id = target?.elementId ?? null;
     if (id === lastHover) return;
     lastHover = id;
@@ -65,7 +49,7 @@ export function createOverlay(instanceId: string, send: (message: AgentMessage) 
     // Pointer default cancellation blocks iframe focus; focus only our neutral surface, never a page control.
     if (event.type === "pointerdown" && input.button === 0) native.focusElement.call(surface, { preventScroll: true });
     if (event.type === "pointermove" || event.type === "pointerover") hover(hit(input.clientX, input.clientY));
-    if (event.type === "click" && input.button === 0) send({ type: "select", target: describe(hit(input.clientX, input.clientY)), shiftKey: input.shiftKey });
+    if (event.type === "click" && input.button === 0) send({ type: "select", target: identity.describe(hit(input.clientX, input.clientY)), shiftKey: input.shiftKey });
   }
 
   /** Clears hover when the pointer exits the preview without synthesizing page events. */

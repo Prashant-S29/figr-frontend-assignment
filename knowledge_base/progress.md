@@ -3,8 +3,8 @@
 Update at the start and end of every milestone, and whenever a decision, gate or limitation appears. Keep entries short and factual.
 
 ## Now
-- **Current milestone:** M4 (not started); M0–M3 are done
-- **Next action:** implement hover/selection ownership and agent geometry polling, then screen-space outlines and R3.1–3.6 behaviour
+- **Current milestone:** M5 (not started); M0–M4 are done
+- **Next action:** implement unique per-parent identity reconciliation, gone-selection pruning and stationary-pointer hover re-resolution; verify page 4 survival and navigation
 
 ## Milestones
 | ID | Name | Status | Verified (what, when) |
@@ -13,7 +13,7 @@ Update at the start and end of every milestone, and whenever a decision, gate or
 | M1 | Agent core and D4 gate | done | 2026-10-03: full gate + keyboard/native-capture/transport probes passed Chrome and Firefox (`2 passed`, 2.3m); typecheck/build and empty unit run passed. Bundle regeneration left git clean after commit `64213d4`. |
 | M2 | Failure core | done | 2026-10-03: 20 unit tests; typecheck/build pass; Chrome/Firefox core probes (2 passed, 56.1s) and M1 regression (2 passed, 2.9m). Vite dev visibility/Retry verified in Chrome. Commit `513632d`; agent regeneration leaves git clean. |
 | M3 | Board and previews | done | 2026-10-03: 24 connections, pan/zoom, scroll/mode/navigation, page-error reporting and isolated failures passed Chrome/Firefox (2 probes, 4.5m); typecheck/build + 20 unit tests passed. Dev-mode visibility and handler/draw/timer recovery verified in Chrome. Commit `1f6f881`; agent regeneration leaves git clean. |
-| M4 | Hover and selection | not started | |
+| M4 | Hover and selection | done | 2026-10-03: full Chrome/Firefox M4 gate (2 passed, 4.6m), M3 regression (2 passed, 3.2m), typecheck/build + 20 unit checks. Vite dev selection/Tab/I/V and preview-only draw failure/Retry verified in Chrome. |
 | M5 | Identity and re-render survival | not started | |
 | M6 | Inspector | not started | |
 | M7 | Layers: tree and sync | not started | |
@@ -44,14 +44,18 @@ Append only. Anything that changes a PRD `D*` item, the protocol, or adds a depe
 
 | 10 | 2026-10-03 | Owner approved private `page-error { message }` event and `clear-hover` host command | M3 requires page-error badges/reports and hover clearing on host pan/zoom; existing agent-error denotes fatal agent failure, and local hover dedupe must reset | Conflating page exceptions with agent failures; clearing only host hover leaving cached agent hover stale | M3 |
 
+| 11 | 2026-10-03 | Owner approved host `track { revision, elementIds }` and `navigate { requestId, elementId, direction }`; agent `geometry { revision, targets: [{ elementId, name, box, clip }] }` and `navigate-result { requestId, target }` | D6 needs tracked-only measurements and R3.5 needs agent-owned DOM traversal; revisions/correlation suppress replaced work. Box/clip are iframe-local finite rects or null for disconnected/invisible elements | Host DOM inspection; agent-owned selection; uncorrelated replies; scaling outline borders with the world | M4 |
+| 12 | 2026-10-03 | Owner approved Enter/Shift+Enter/Tab/Shift+Tab change viewer selection only in Select; Interact keeps native keyboard behavior. Escape clears viewer selection in either mode without cancelling native Interact handling | R3 keyboard behavior must coexist with R1.5's normal Interact page and retained hidden selection | Changing hidden selection while users tab/type in Interact; cancelling native Interact keys | M4 |
+
 ## Known limitations
 Feeds the README "where this breaks". Add as discovered: what breaks, when, and why.
 
-_No unresolved M1–M3 gate defects found in the completed checks. Full product failure-matrix verification remains M9; formal performance verification remains M10._
+_No unresolved M1–M4 gate defects found in the completed checks. Full product failure-matrix verification remains M9; formal performance verification remains M10._
 
 - Native Interact scrolling follows the browser's gesture rules: Firefox can latch a wheel transaction to the nested container for 1500ms, so outward chaining at its boundary requires a new gesture. Select-mode emulation consumes the remainder immediately. This is native browser behavior, not an overlay fallback.
 
 - Chrome quantizes native iframe-local wheel coordinates to CSS pixels. Pointer-centred zoom uses that native coordinate; at fractional transforms it can differ from an unrounded CDP tooling coordinate by up to one iframe-local pixel. Browser probes verify the actual native anchor and bound that rounding, rather than assuming fractional CDP input survives unchanged.
+- Pending M5 (not an M4 completion claim): identity is reference-only. Rebuilt/detached selected nodes become invisible but are not yet reconciled or pruned from the host selection; stationary-pointer hover re-resolution after mutations is also deferred to M5.
 
 ## Open questions for the owner
 _None._
@@ -73,6 +77,10 @@ One line per working session: what changed, what is next.
 - 2026-10-03: M3 started. Reading existing transport/failure owners before replacing the harness. Owner approved the minimal page-error/clear-hover protocol additions; no dependencies or fixed backend changes planned.
 
 - 2026-10-03: M3 completed. Replaced the disposable harness with the product grid, validated screens API, viewport/preview owners, native host controls and page-error badges. Final Chrome/Firefox probes, typecheck/build and 20 unit tests pass. Dev triggers verified; no dependency or fixed backend/HTML changes. Next: M4 only.
+
+- 2026-10-03: M4 started. Reviewing protocol, store ownership and outline geometry before implementation. Owner approved geometry/navigation wire additions and the keyboard-mode clarification; reconciliation and inspector/layers remain later milestones.
+
+- 2026-10-03: M4 completed. Added reference identity/traversal, tracked-only geometry, host-owned selection and screen-space outlines. Final M4 Chrome/Firefox gate and M3 regression pass, including late drawing cancellation after navigation; Vite dev smoke and typecheck/build/20 unit checks pass. Reconciliation and inspector/layers remain deferred. Next: M5 only.
 
 ## M0 verification evidence
 
@@ -134,3 +142,22 @@ One line per working session: what changed, what is next.
 - Artifacts: `/tmp/figr-m3-chrome-agent-browser.json`, `/tmp/figr-m3-firefox.json`, matching production screenshots, `/tmp/figr-m3-dev.png`, and server/dev logs in `/tmp/figr-m3-*.log`. Final `npm run typecheck`, `npm run build`, `npm test` (**20 passed**) succeeded; the regenerated agent bundle is included. No server/data or page HTML changes from M2; all HTML differences from baseline remain only the approved M1 first-head script tags.
 - Committed implementation/build: `1f6f881`. `npm run build:agent` afterwards produced no git changes. Protected server/data diff from baseline is empty; removing the one script tag restores all seven HTML pages byte-for-byte. Production/development servers and the Chrome verification session were stopped after the checks.
 - Scope: M3 is complete. M4 and later features were not started; full failure matrix, formal performance checks and the five submission E2E tests remain deferred to their designated milestones.
+
+## M4 verification evidence
+
+- Ownership: `selection.ts` alone owns global hover, active preview, ordered single-preview selection, revisioned tracking and rAF-batched geometry. The board owns only screens/mode and delegates inspection actions. `Outlines.tsx` projects store snapshots into an unscaled host layer; its host-only offset-chain calculation makes projection independent of viewport subscriber order. Raw element borders are masked by agent-visible clips; labels are preview-clipped and constant-sized. React never owns per-rect/per-wheel state, and iframes are not remounted during motion.
+- Agent: `identity.ts` mints reference-stable ids with weak node bindings and resolves real parent/child/sibling relations without index matching. `geometry.ts` polls only tracked identities and overflow ancestors through captured native rect/style/rAF operations, sends changed measurements and stops when tracking is empty. Rebuilt-node reconciliation/gone state and mutation-driven hover re-resolution remain M5.
+- Owner approved protocol: host `track { revision, elementIds }` / `navigate { requestId, elementId, direction }`; agent `geometry { revision, targets: [{ elementId, name, box, clip }] }` / `navigate-result { requestId, target }`. Shapes, finite dimensions, unique ids, element/preview clip containment and current-instance prefixes are validated. Old tracking revisions or cancelled traversal replies are silent. Keyboard traversal queues rapid intents and advances from each prior result rather than reusing an obsolete start.
+- Owner-approved keyboard clarification is recorded in PRD ambiguity 5: Enter/Shift+Enter/Tab/Shift+Tab affect viewer selection only in Select; Interact keeps native keyboard behaviour. Escape clears viewer selection in either mode without cancelling native Interact handling.
+- Production browser gate: `npx playwright test --config /tmp/figr-m4-check/playwright.config.ts` finished **2 passed (4.6m)** on Google Chrome 153 via agent-browser and Playwright Firefox 155. Chrome uses CLI pointer/key input, with native CDP wheel and Shift-click input because the CLI lacks mouse modifiers and its wheel target is 0,0. Privileged observations/fixtures are tooling only; the production host never reads child DOM. These disposable probes are outside the five M10 product E2E tests.
+- R2/R3 clicks: disabled submit and a tooling-disabled page input were hoverable/selectable; Select never focused page controls, toggled checkbox or followed links. Hover/selection used different colors and exactly 1px/2px borders. Shift toggled within one preview without duplicates; Shift into a different same-URL preview replaced the selection. Only one global hover existed; leaving the preview/window cleared it. Page background, empty-board click and Escape cleared selection. Dragging empty space preserved selection and cleared hover.
+- Keyboard: most-recent multi-selection, Enter first child, Shift+Enter parent/top-level no-op and sibling wrapping worked immediately after iframe clicks. Three replies deliberately held behind the first Tab advanced sequentially on release. A held reply delivered after reselection changed nothing/reported nothing. Interact hid all outlines but retained selection; native Tab did not change it; Select restored it. Escape also cleared hidden Interact selection.
+- Geometry: raw host borders agreed with captured native child boxes to **<0.1 host px** through pan, page/nested scrolling, window resize, element size/movement and zoom. At exactly 25%/400%, borders stayed 1px/2px and labels stayed 12px font / 20px height. A top-edge header label went below; ordinary labels remained above when there was room.
+- Clipping/every-element cases: SVG viewports and fill:none SVG circles were selectable. Sticky table headers remained topmost hit targets, while keyboard traversal reached a fully covered original body cell. Nested overflow clipped the original raw box rather than inventing a border on the clip edge. Fully out-of-scrollport/page elements had no outline but retained selection, and outlines returned on scrolling back. A browser-only image fixture proved image selection, two-axis padding-box clipping and clipping at the preview's bottom/right edges; labels/boxes could not escape the preview.
+- Native/string safety: HTML-looking names appeared literally, with no host image node or executable markup. Replacing the page's getBoundingClientRect/getComputedStyle/requestAnimationFrame with throwing functions did not break captured measurements or add a report. The instrumented poller measured only the tracked image and its overflow parent, and no longer scheduled frames after hover/selection tracking became empty.
+- Failure/lifetimes: the M4 dev trigger enters the actual preview drawing callback in either mode, adds exactly one preview report and leaves 23 ready; Retry restores all 24 and outline interaction. NaN geometry was rejected with one preview-only report and successful Retry. Old geometry/traversal replies were silent. Final review bound queued drawing faults to the original private connection; a deliberately held drawing callback delivered after a new hello/navigation changed nothing/reported nothing, and the new preview remained usable.
+- Regression: `npx playwright test --config /tmp/figr-m4-regression/playwright.config.ts` finished **2 passed (3.2m)** on both browsers: all 24 connections, cross-origin dimensions/sandbox, pan/zoom/scroll, editable letter exceptions, navigation/hash handling, page-error badges/report contexts, real no-connect/lost-pong deadlines, regional Retry/render dedupe, malformed API responses and cancelled late response handling still pass. Normal production has no dev menu.
+- Vite development: `npm run dev` at `/` without `?dev` served `/@vite/client`, showed dev controls and connected all 24. Native click + Tab selected the ghost button; I hid outlines while keeping one selected id; V restored them. Actual preview drawing injection changed reports 4→5, left 23 ready and one preview fallback; Retry restored 24 with no additional report.
+- Tooling corrections: the first MessageChannel observer also intercepted React scheduler null messages; optional access and fresh Chrome sessions fixed that instrumentation error. At 400%, a preview can cover all board pixels, so hover-reset verification uses the toolbar rather than assuming visible empty space. One mask observation obtained a detached handle during atomic outline replacement; a single host evaluation now reads the current painted box, retaining the same clipping/precision assertions. Fresh sessions remove stale network interception between regression runs. No product test/assertion was skipped or weakened, and no dependency was added.
+- Artifacts: `/tmp/figr-m4-chrome-agent-browser.json`, `/tmp/figr-m4-firefox.json`, matching screenshots, `/tmp/figr-m4-final-v3.log`, `/tmp/figr-m4-regression-final-v2.log`, `/tmp/figr-m4-dev.png` and production/dev logs. Typecheck/build and **20 unit tests** pass. No fixed server/data/page HTML or dependency changes; regenerated `backend/pages/agent.js` is included.
+- Scope: M4 is complete. M5 reference reconciliation/gone pruning, M6 inspector, M7–M8 layers, M9 full failure matrix and M10 formal performance/submission E2E verification were not started.

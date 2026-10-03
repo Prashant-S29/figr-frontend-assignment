@@ -11,6 +11,7 @@ import { DevMenu } from "./ui/DevMenu";
 import { routeCaughtRender } from "./ui/RegionBoundary";
 import "./ui/failures.css";
 import "./ui/board.css";
+import "./ui/outlines.css";
 
 const lifetime = createScope();
 const region = createFailureRegion("board", { screenId: null }, lifetime);

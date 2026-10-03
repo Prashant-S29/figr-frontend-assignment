@@ -1,5 +1,5 @@
-// Owns screens, preview lifetimes, mode and single-board hover; the viewport owns motion and later milestones own selection/tree/inspector.
-import type { AgentMessage, Mode, Target } from "../../../shared/protocol";
+// Owns screens, preview lifetimes and mode; selection owns inspection state, viewport owns motion and later stores own tree/inspector.
+import type { AgentMessage, HostMessage, Mode } from "../../../shared/protocol";
 import { fetchScreens } from "../api/screens";
 import { runAttempt } from "../core/attempt";
 import { registerDevTrigger } from "../core/dev-registry";
@@ -8,18 +8,19 @@ import { scopedFrame, scopedTimeout } from "../core/schedule";
 import type { FailureRegion } from "./failure-region";
 import { createPreview, type PreviewStore } from "./preview";
 import { createViewport } from "./viewport";
+import { createSelection } from "./selection";
 
-export interface Hover { readonly screenId: string; readonly target: Target }
-export interface BoardSnapshot { readonly loading: boolean; readonly previews: readonly PreviewStore[]; readonly mode: Mode; readonly hover: Hover | null; readonly renderError: Error | null }
+export interface BoardSnapshot { readonly loading: boolean; readonly previews: readonly PreviewStore[]; readonly mode: Mode; readonly renderError: Error | null }
 
 /** Creates the product board with one discovery listener and abortable requests per board retry generation. */
 export function createBoard(region: FailureRegion, dev: boolean) {
-  let snapshot: BoardSnapshot = { loading: true, previews: [], mode: "select", hover: null, renderError: null };
+  let snapshot: BoardSnapshot = { loading: true, previews: [], mode: "select", renderError: null };
   let generation = region.getSnapshot().generation;
   let failing = false;
   let dragging = false;
   let disposed = false;
   const listeners = new Set<() => void>();
+  const selection = createSelection(boardTarget, sendInspection);
   const viewport = createViewport(boardTarget, clearHover);
   const removeTriggers: (() => void)[] = [];
 
@@ -39,36 +40,51 @@ export function createBoard(region: FailureRegion, dev: boolean) {
   function mode(): Mode { return snapshot.mode; }
   /** Sends a private command under the preview's own failure region. */
   function send(preview: PreviewStore, message: Parameters<PreviewStore["send"]>[0]): void { guard(preview.region.target, preview.send)(message); }
+  /** Sends tracked sets/traversal only to the ready screen owner, never to a URL-sharing sibling. */
+  function sendInspection(screenId: string, message: HostMessage): void {
+    const preview = snapshot.previews.find(item => item.screen.id === screenId);
+    if (preview?.getSnapshot().phase === "ready") send(preview, message);
+  }
   /** Clears both host hover and all ready agents' dedupe caches when host motion starts. */
   function clearHover(): void {
-    if (snapshot.hover) update({ ...snapshot, hover: null });
+    selection.clearHover();
     for (const preview of snapshot.previews) if (preview.getSnapshot().phase === "ready") send(preview, { type: "clear-hover" });
   }
-  /** Drops only the navigating/disconnected preview's transient host state. */
-  function replaced(screenId: string): void {
-    if (snapshot.hover?.screenId === screenId) update({ ...snapshot, hover: null });
-  }
+  /** Drops only references owned by the replaced/failed document before new-instance traffic arrives. */
+  function replaced(screenId: string): void { selection.forget(screenId); }
   /** Changes mode once in the board store, then tells each isolated agent to change its own overlay. */
   function setMode(next: Mode): void {
     if (snapshot.mode === next) return;
     clearHover();
+    selection.cancelNavigation();
     update({ ...snapshot, mode: next });
     for (const preview of snapshot.previews) send(preview, { type: "mode", mode: next });
   }
-  /** Applies V/I without hijacking editable text or browser modifier shortcuts. */
-  function shortcut(key: string, editable: boolean, modified: boolean): void {
-    if (editable || modified) return;
-    if (key.toLowerCase() === "v") setMode("select");
-    if (key.toLowerCase() === "i") setMode("interact");
+  /** Applies selection keys only in Select while preserving native Interact/editable letter behaviour. */
+  function shortcut(key: string, editable: boolean, modified: boolean, shift: boolean): boolean {
+    if (key === "Escape") { selection.clear(); return true; }
+    if (snapshot.mode === "select" && !modified && (key === "Enter" || key === "Tab")) {
+      selection.navigate(key === "Enter" ? shift ? "parent" : "child" : shift ? "previous" : "next");
+      return true;
+    }
+    if (editable || modified) return false;
+    if (key.toLowerCase() === "v") { setMode("select"); return true; }
+    if (key.toLowerCase() === "i") { setMode("interact"); return true; }
+    return false;
   }
   /** Converts iframe-local zoom coordinates using only the host's iframe box and painted scale. */
   function receive(screenId: string, message: AgentMessage): void {
     if (message.type === "hover") {
       if (snapshot.mode !== "select" || dragging) return;
-      if (!message.target && snapshot.hover?.screenId !== screenId) return;
-      update({ ...snapshot, hover: message.target ? { screenId, target: message.target } : null });
+      selection.hover(screenId, message.target);
+    } else if (message.type === "select") {
+      if (snapshot.mode === "select") selection.select(screenId, message.target, message.shiftKey);
+    } else if (message.type === "geometry") {
+      selection.receiveGeometry(screenId, message.revision, message.targets);
+    } else if (message.type === "navigate-result") {
+      selection.navigationResult(screenId, message.requestId, message.target);
     } else if (message.type === "key") {
-      shortcut(message.key, message.editable, message.ctrlKey || message.metaKey || message.altKey);
+      shortcut(message.key, message.editable, message.ctrlKey || message.metaKey || message.altKey, message.shiftKey);
     } else if (message.type === "zoom") {
       const frame = snapshot.previews.find(preview => preview.screen.id === screenId)?.getFrame();
       const board = document.querySelector<HTMLElement>('[data-testid="board"]');
@@ -84,11 +100,12 @@ export function createBoard(region: FailureRegion, dev: boolean) {
   function hello(event: MessageEvent<unknown>): void {
     for (const preview of snapshot.previews) preview.discover(event);
   }
-  /** Forwards host-focused mode keys without stealing letters from editable controls. */
+  /** Handles host-focused shortcuts with the same state owner as iframe-forwarded keys. */
   function key(event: KeyboardEvent): void {
     const active = document.activeElement;
     const editable = !!active && (active.matches("input,textarea,select") || (active instanceof HTMLElement && active.isContentEditable));
-    shortcut(event.key, editable, event.ctrlKey || event.metaKey || event.altKey);
+    const handled = shortcut(event.key, editable, event.ctrlKey || event.metaKey || event.altKey, event.shiftKey);
+    if (handled && snapshot.mode === "select") event.preventDefault();
   }
   /** Ignores a trailing hover message during an empty-board drag. */
   function setDragging(value: boolean): void { dragging = value; if (value) clearHover(); }
@@ -117,7 +134,8 @@ export function createBoard(region: FailureRegion, dev: boolean) {
     for (const preview of snapshot.previews) preview.dispose();
     dragging = false;
     viewport.reset();
-    update({ ...snapshot, previews: [], loading: true, hover: null, renderError: null });
+    selection.reset();
+    update({ ...snapshot, previews: [], loading: true, renderError: null });
     guard(region.target, load)();
   }
   const unsubscribeRegion = region.subscribe(regionChanged);
@@ -137,6 +155,12 @@ export function createBoard(region: FailureRegion, dev: boolean) {
   function noConnect(): void { snapshot.previews[0]?.noConnect(); }
   /** Triggers a nonfatal preview badge/report through the same scoped page-event dispatcher. */
   function pageError(): void { snapshot.previews[0]?.injectPageError(); }
+  /** Injects a real preview-owned outline drawing error on the next animation frame. */
+  function outlineError(): void {
+    const id = selection.getSnapshot().screenId ?? snapshot.previews[0]?.screen.id;
+    const preview = snapshot.previews.find(item => item.screen.id === id);
+    if (preview) selection.injectDrawFault(preview.screen.id, preview.getTarget());
+  }
   /** Supplies the selected dev preview's region rather than reporting failures against the board. */
   function previewTarget() { return snapshot.previews[0]?.region.target ?? region.target; }
   /** Exercises a synchronous board entry point with the shared failure path. */
@@ -152,6 +176,7 @@ export function createBoard(region: FailureRegion, dev: boolean) {
       registerDevTrigger({ id: "screens-fail", label: "Screens request fails", target: boardTarget, run: screensFail }),
       registerDevTrigger({ id: "preview-no-connect", label: "First preview never connects (10s)", target: previewTarget, run: noConnect }),
       registerDevTrigger({ id: "page-error", label: "First preview page error", target: previewTarget, run: pageError }),
+      registerDevTrigger({ id: "outline-draw", label: "Preview outline drawing fails", target: boardTarget, run: outlineError }),
       registerDevTrigger({ id: "board-handler", label: "Board handler fails", target: boardTarget, run: handlerError }),
       registerDevTrigger({ id: "render", label: "Board render fails", target: boardTarget, run: renderError }),
       registerDevTrigger({ id: "frame", label: "Board drawing fails", target: boardTarget, run: frameError }),
@@ -168,9 +193,10 @@ export function createBoard(region: FailureRegion, dev: boolean) {
     for (const remove of removeTriggers) remove();
     for (const preview of snapshot.previews) preview.dispose();
     viewport.dispose();
+    selection.dispose();
     listeners.clear();
   }
   guard(region.target, load)();
-  return { region, viewport, getSnapshot, subscribe, setMode, clearHover, setDragging, dispose };
+  return { region, viewport, selection, getSnapshot, subscribe, setMode, clearHover, setDragging, dispose };
 }
 export type BoardStore = ReturnType<typeof createBoard>;

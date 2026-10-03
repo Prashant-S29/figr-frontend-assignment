@@ -1,4 +1,4 @@
-// Owns one screenId's authenticated connection, heartbeat and page-error badge; board mode/hover and React DOM are owned elsewhere.
+// Owns one screenId's authenticated connection, heartbeat and page-error badge; shared selection/geometry and React DOM are owned elsewhere.
 import { isHello, isAgentMessage, type AgentMessage, type HostMessage, type Mode } from "../../../shared/protocol";
 import type { Screen } from "../api/screens";
 import { fail, type Failure, type FailureTarget } from "../core/fail";
@@ -91,7 +91,8 @@ export function createPreview(screen: Screen, parent: Scope, intents: PreviewInt
       const owner = target();
       fail(owner.region, new Error(message.message), { ...owner.ctx, publish: publishPageError });
     } else {
-      if ((message.type === "hover" || message.type === "select") && message.target && !message.target.elementId.startsWith(`${snapshot.instanceId}:`)) throw new Error("Target instance mismatch");
+      if ((message.type === "hover" || message.type === "select" || message.type === "navigate-result") && message.target && !message.target.elementId.startsWith(`${snapshot.instanceId}:`)) throw new Error("Target instance mismatch");
+      if (message.type === "geometry" && message.targets.some(item => !item.elementId.startsWith(`${snapshot.instanceId}:`))) throw new Error("Geometry instance mismatch");
       intents.receive(screen.id, message);
     }
   }
@@ -171,6 +172,6 @@ export function createPreview(screen: Screen, parent: Scope, intents: PreviewInt
   function dispose(): void { disconnect(); frame = null; unsubscribeRegion(); region.dispose(); listeners.clear(); }
   /** Exposes host geometry for coordinate conversion without ever reading the iframe's cross-origin DOM. */
   function getFrame(): HTMLIFrameElement | null { return frame; }
-  return { screen, region, getSnapshot, subscribe, attach, discover, send, noConnect, injectPageError, dispose, getFrame };
+  return { screen, region, getSnapshot, subscribe, attach, discover, send, noConnect, injectPageError, dispose, getFrame, getTarget: target };
 }
 export type PreviewStore = ReturnType<typeof createPreview>;

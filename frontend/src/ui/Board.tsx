@@ -4,6 +4,7 @@ import { guard } from "../core/guard";
 import type { BoardStore } from "../stores/board";
 import type { PreviewStore } from "../stores/preview";
 import { Preview } from "./Preview";
+import { Outlines } from "./Outlines";
 
 const Grid = memo(function Grid({ previews }: { previews: readonly PreviewStore[] }) {
   return <>{previews.map(preview => <Preview key={preview.screen.id} preview={preview} />)}</>;
@@ -16,7 +17,7 @@ export function Board({ board }: { board: BoardStore }) {
   useEffect(() => {
     const element = canvas.current!;
     const scene = world.current!;
-    let drag: { id: number; x: number; y: number } | null = null;
+    let drag: { id: number; x: number; y: number; moved: boolean } | null = null;
     const paint = () => {
       const { x, y, zoom } = board.viewport.getSnapshot();
       scene.style.transform = `translate(${x}px, ${y}px) scale(${zoom})`;
@@ -25,9 +26,13 @@ export function Board({ board }: { board: BoardStore }) {
       element.dataset.zoom = String(zoom);
     };
     const hover = () => {
-      const current = board.getSnapshot().hover;
-      element.dataset.hoverScreen = current?.screenId ?? "";
-      element.dataset.hoverElement = current?.target.elementId ?? "";
+      const inspection = board.selection.getSnapshot();
+      element.dataset.hoverScreen = inspection.hover?.screenId ?? "";
+      element.dataset.hoverElement = inspection.hover?.target.elementId ?? "";
+      element.dataset.selectionScreen = inspection.screenId ?? "";
+      element.dataset.selectedCount = String(inspection.targets.length);
+      element.dataset.selectedIds = JSON.stringify(inspection.targets.map(item => item.elementId));
+      element.dataset.activeScreen = inspection.activeScreenId ?? "";
     };
     const protect = <E extends Event,>(work: (event: E) => void) => (event: E) => guard(board.region.target, work)(event);
     const empty = (target: EventTarget | null) => target === element || target === scene;
@@ -35,17 +40,19 @@ export function Board({ board }: { board: BoardStore }) {
       if (event.button !== 0 || !empty(event.target)) return;
       event.preventDefault();
       element.setPointerCapture(event.pointerId);
-      drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+      drag = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
       board.setDragging(true);
     });
     const move = protect((event: PointerEvent) => {
       if (!drag || drag.id !== event.pointerId) return;
       board.viewport.pan(event.clientX - drag.x, event.clientY - drag.y);
-      drag = { id: drag.id, x: event.clientX, y: event.clientY };
+      drag = { id: drag.id, x: event.clientX, y: event.clientY, moved: drag.moved || event.clientX !== drag.x || event.clientY !== drag.y };
     });
     const up = protect((event: PointerEvent) => {
       if (!drag || drag.id !== event.pointerId) return;
+      const clicked = event.type === "pointerup" && !drag.moved;
       drag = null;
+      if (clicked) board.selection.clear();
       board.setDragging(false);
       if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId);
     });
@@ -64,7 +71,7 @@ export function Board({ board }: { board: BoardStore }) {
     });
     const leave = protect(() => board.clearHover());
     const removeViewport = board.viewport.subscribe(guard(board.region.target, paint));
-    const removeHover = board.subscribe(guard(board.region.target, hover));
+    const removeHover = board.selection.subscribe(guard(board.region.target, hover));
     element.addEventListener("pointerdown", down);
     element.addEventListener("pointermove", move);
     element.addEventListener("pointerup", up);
@@ -93,5 +100,6 @@ export function Board({ board }: { board: BoardStore }) {
   return <div className="board" data-testid="board" ref={canvas}>
     {snapshot.loading ? <p className="board-loading" data-testid="screens-loading">Loading screens…</p> : null}
     <div className="board-world" data-testid="board-world" ref={world}><Grid previews={snapshot.previews} /></div>
+    <Outlines board={board} />
   </div>;
 }

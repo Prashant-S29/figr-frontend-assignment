@@ -127,7 +127,7 @@ Also written into the README ("ambiguities" section).
 2. **Page errors** (6.3): the brief doesn't say whether they reach `report()`. We report each occurrence once, `region: "preview"`, with that screen's id. Four screens on page 6 means four badges and four reports.
 3. **Identical un-keyed siblings:** if an element can't be told apart from a sibling after a re-render, we treat it as gone rather than risk a jump (prefers "never jump" over "stays selected").
 4. **"Out of view"** (3.4, 4.6): clipped by any scroll container or the preview, not just the viewport.
-5. **V/I and other letter shortcuts** don't fire while focus is in an editable element (page input or the layers search box). Escape, Enter, Tab and the arrow keys follow R3.5/R4.8.
+5. **V/I and other letter shortcuts** don't fire while focus is in an editable element (page input or the layers search box). Escape, Enter, Tab and the arrow keys follow R3.5/R4.8. Enter/Shift+Enter/Tab/Shift+Tab change viewer selection only in Select mode; Interact retains native keyboard behaviour. Escape clears viewer selection in either mode without cancelling native Interact handling (owner-approved M4 clarification).
 6. **"Position within the page"** (5.1): the element's top-left in document coordinates (rect plus page scroll), not viewport-relative.
 7. **Search matching:** case-insensitive substring on the Name.
 8. **Elements covered by another** (e.g. under the sticky header): hit-testing picks the topmost element at the pointer, so a fully covered element is reached via the layers panel or keyboard navigation.
