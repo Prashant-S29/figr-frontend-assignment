@@ -1,0 +1,8 @@
+/* Positions temporary regional fallback surfaces and the dev menu; product board styling belongs to later milestones. */
+.failure-host { position: relative; width: 1280px; }
+.failure-overlay { position: absolute; inset: 0; pointer-events: none; }
+.preview-failure-overlay { position: absolute; left: 0; bottom: 0; width: 1280px; height: 800px; pointer-events: none; }
+.region-error { box-sizing: border-box; min-height: 100%; padding: 24px; background: #fff4f4; border: 1px solid #b42318; color: #7a271a; pointer-events: auto; overflow-wrap: anywhere; }
+.dev-menu { position: relative; z-index: 1; max-width: 1280px; padding: 8px; border-bottom: 1px solid #aaa; background: #f5f5f5; }
+.dev-menu button { margin: 4px; }
+.dev-menu ol { max-height: 240px; overflow: auto; }

@@ -48,7 +48,7 @@ How to use this file:
 **PRD:** D7, R6.1, R6.4–6.6, R6.7 (skeleton).
 **Build:**
 
-- `fail(region, error, ctx)` is the only path to `report()`, deduped per error object.
+- `fail(region, error, ctx)` is the only path to `report()`, deduped per error object within a region retry generation (owner-approved D7 clarification).
 - Scope/attempt helper with abort signal and alive flag. Cancelled or stale means silent.
 - `guard` wrapper for handlers, timers and rAF. React error boundary per region. Global `error`/`unhandledrejection` handlers route into `fail()`.
 - Region error component with Retry.

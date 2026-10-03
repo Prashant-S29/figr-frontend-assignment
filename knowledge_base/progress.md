@@ -3,15 +3,15 @@
 Update at the start and end of every milestone, and whenever a decision, gate or limitation appears. Keep entries short and factual.
 
 ## Now
-- **Current milestone:** M2 (not started); M0 and M1 are done
-- **Next action:** build the shared failure core (fail, scope/guard, region boundaries and dev-menu shell) and its browser-free unit checks
+- **Current milestone:** M2 (in progress); M0 and M1 are done
+- **Next action:** commit the verified failure core and evidence, confirm deterministic builds leave git clean, then mark M2 done
 
 ## Milestones
 | ID | Name | Status | Verified (what, when) |
 |---|---|---|---|
 | M0 | Scaffold and baseline | done | 2026-10-03: fresh clone + `npm ci` + `npm start`; Chrome rendered the production shell, API returned 24 screens, all 7 pages and agent asset returned 200. Typecheck/build passed; empty unit run exited 0. Protected backend diff empty; only generated `agent.js` added under pages. |
 | M1 | Agent core and D4 gate | done | 2026-10-03: full gate + keyboard/native-capture/transport probes passed Chrome and Firefox (`2 passed`, 2.3m); typecheck/build and empty unit run passed. Bundle regeneration left git clean after commit `64213d4`. |
-| M2 | Failure core | not started | |
+| M2 | Failure core | in progress | 20 browser-free tests pass; production browser probes pass Chrome/Firefox (2 passed, 56.1s); M1 regression gate passes both (2 passed, 2.9m). Vite dev visibility/render Retry verified in Chrome. Awaiting final commit/clean build. |
 | M3 | Board and previews | not started | |
 | M4 | Hover and selection | not started | |
 | M5 | Identity and re-render survival | not started | |
@@ -39,11 +39,13 @@ Append only. Anything that changes a PRD `D*` item, the protocol, or adds a depe
 | 5 | 2026-10-03 | Owner approved initial M1 protocol: window hello/connect with instanceId and one transferred port; private ready, mode, ping/pong, hover/select intents (minted id + name), key, zoom wheel, agent-error | D3 specifies transport but not a wire schema; shared validators establish the boundary | Ad-hoc harness messages or sending DOM references | M1 |
 | 6 | 2026-10-03 | Owner approved fixing navigation discovery: hello targets parent with `*`; bootstrap requires the actual parent source; host validates iframe source/page origin before transferring the port | Referrer after iframe navigation is the previous page, not the host; hello carries no DOM data and all later traffic is private | Referrer-derived parent origin | M1 |
 | 7 | 2026-10-03 | Owner approved D4 clarification: Select pointer-down focuses only the neutral agent surface in its closed shadow root with `preventScroll`, not page controls | Pointer-default cancellation otherwise leaves host toolbar focus and loses iframe shortcuts | Leaving focus in host controls or focusing page inputs | M1 |
+| 8 | 2026-10-03 | Proposed, pending owner: dedupe Error identity within a region retry generation; an explicitly entered live retry may report a reused Error as a new occurrence | D7's per-object dedupe and R6.4's fresh retry failure conflict when code rethrows the same object; global catches of cancelled work must stay silent | Requiring callers to allocate fresh Error objects on every retry | M2 |
+| 9 | 2026-10-03 | Owner approved D7 clarification: Error identity dedupe is per region retry generation; explicit live Retry may reuse the Error as a fresh occurrence, while stale/global catches remain silent | Satisfies both exact-once catches and R6.4's new-failure-on-retry rule | Lifetime per-object dedupe requiring fresh errors from callers | M2 |
 
 ## Known limitations
 Feeds the README "where this breaks". Add as discovered: what breaks, when, and why.
 
-_No unresolved M1 gate defects. Navigation discovery and overlay keyboard focus were fixed and verified in both browsers._
+_No unresolved M1 gate or M2 core defects found in the completed checks. Product failure-matrix verification remains M9._
 
 - Native Interact scrolling follows the browser's gesture rules: Firefox can latch a wheel transaction to the nested container for 1500ms, so outward chaining at its boundary requires a new gesture. Select-mode emulation consumes the remainder immediately. This is native browser behavior, not an overlay fallback.
 
@@ -60,6 +62,8 @@ One line per working session: what changed, what is next.
 - 2026-10-03: M1 gate paused per project rules after Chrome and Firefox both navigated page 2 → page 1 but did not reconnect. Root cause is incorrect referrer-based parent-origin discovery after navigation. Owner approved the fix; navigation and the D4 pointer/wheel gate then passed both browsers.
 - 2026-10-03: Additional keyboard checks paused M1 again: Enter/Tab after Select clicks did not reach the iframe when host controls retained focus. Owner approved overlay-only focus; the complete gate and transport probes then passed both browsers. Temporary verification lives at `/tmp/figr-m1-gate/` (not in the five product E2E suite). Chrome uses agent-browser input/inspection, with coordinate-accurate native wheel events supplied over CDP because agent-browser 0.27 wheel targets host 0,0; Firefox uses the Playwright runner and a new native wheel gesture after its 1500ms target latch.
 - 2026-10-03: M1 completed and committed as `64213d4`; deterministic agent regeneration left git clean. D4 gate is passed, both approved fixes are logged, and the harness remains disposable. Next: M2 only.
+- 2026-10-03: M2 started. Building shared failure infrastructure and browser-free tests, with temporary M1 harness integration for browser verification. No protocol/dependency change or M3 feature work planned.
+- 2026-10-03: M2 core and 17 tests passed; Chrome exercised regional Retry, render/timer/rAF/global failures, duplicate global deliveries, cancellation and safe text rendering. Paused for D7/R6.4 clarification about explicitly reusing an Error object on Retry before finalizing the core. Owner approved generation-scoped dedupe; the final 20 unit tests and Chrome/Firefox browser checks passed.
 
 ## M0 verification evidence
 
@@ -87,4 +91,19 @@ One line per working session: what changed, what is next.
 - `npm run typecheck`, `npm run build`, `npm test` and the agent build passed. Unit command still contains zero cases (M2); the five product checks still belong to M10. Screenshots: `/tmp/figr-m1-chrome-agent-browser.png`, `/tmp/figr-m1-firefox.png` (local artifacts).
 - Protected inputs: server/data diff from `baseline` is empty. For each of seven HTML files, removing the single first-head `<script src="/agent.js"></script>` restored byte-for-byte baseline content. Only that tag and generated `agent.js` changed under the pages directory.
 - Committed build: `64213d4` includes the regenerated `backend/pages/agent.js`; `npm run build:agent` afterwards produced no git changes.
-- Scope deliberately deferred: product board/outlines/selection, render reconciliation, layers/inspector, page-error badges and shared failure/report handling. No M2 or later feature work was started.
+- M1 scope at completion: product board/outlines/selection, render reconciliation, layers/inspector, page-error badges and shared failure/report handling were deferred. No M2 or later feature work had started.
+
+## M2 verification evidence
+
+- Core: `fail(region, error, ctx)` is the sole caller of `report()`. Weakly held occurrence attribution dedupes guards, React boundaries/root callbacks and global handlers within a region retry generation. Explicit live Retry can reuse an Error as a fresh occurrence; child attempts keep their publisher/generation identity, and cancelled global deliveries keep their original dead scope. Unowned host-global errors fall back to the board; known owners keep their region/screen/key.
+- Lifetimes: parent/child scopes expose an abort signal and alive flag. `runAttempt` applies only live results and contains loading/application errors. `guard` contains sync errors and returned promise rejections. Scoped timeout/rAF helpers cancel native work on disposal. Region stores replace error snapshots whole, invalidate old work on Retry and cannot resurrect a disposed owner.
+- UI/integration: generic React region boundaries and text-only Error/Retry UI; React 19 caught/uncaught root callbacks feed the same core. The existing M1 DOM island uses scoped preview handlers, private-port scopes, timers and cleanup. Explicit Reload/page-choice/Retry starts a fresh preview generation. Temporary board/preview fallback surfaces are verification infrastructure, not the product board. The dev registry has only M2 core probes; feature-specific failure triggers remain their milestones.
+- Unit command: `npm test` reported **20 passed**, no browser fixture. Covers guard + actual boundary method + React caught-root callback + global dedupe; cancelled/late/gone work; response-apply errors; fresh and reused-error Retry; child-scope completion; async guards; primitive occurrences; parent cancellation; timers; un-keyed sibling-row isolation; 100-entry ordered ring; registry ownership. Removed M0's `--pass-with-no-tests` flag now that cases exist.
+- Production browser probes: `npx playwright test --config /tmp/figr-m2-check/playwright.config.ts` reported **2 passed (56.1s)** on Chrome 153 via agent-browser (CDP tooling for observations) and Playwright Firefox 155. These temporary probes are outside the five future product E2E cases.
+- Browser observations, both: preview handler fault showed preview-only Retry and kept toolbar mode changes working; preview Retry replaced the connection and preserved Interact mode. Handler, actual React render, timer, rAF and native unhandled rejection each added exactly one report, with one failure + one report log entry, and Retry recovered without adding reports. Cancellation's deliberately late response left zero error regions and report count unchanged.
+- Global/text checks, both: delivering one Error through two error events and a rejection event added just one report. HTML-looking error text rendered literally without creating an image or executing its onerror. A genuinely uncaught native host timer error used the board fallback. A fresh failed Retry added one report. Normal production without `?dev` had no dev menu; the sandboxed preview remained connected.
+- Vite development smoke, Chrome: `npm run dev` at `/` without `?dev` exposed the menu and served `/@vite/client`; actual render injection produced one report, then Retry recovered. Production `?dev` visibility was separately verified above.
+- M1 regression: `npx playwright test --config /tmp/figr-m1-gate/playwright.config.ts` reported **2 passed (2.9m)** after scoped harness integration: disabled controls, Select/Interact, keyboard focus, nested scrolling/sticky targets, zoom, native captures, port replacement/invalid-message isolation, lost-pong deadline and Reload recovery still pass in Chrome and Firefox.
+- Local artifacts: `/tmp/figr-m2-chrome-agent-browser.json`, `/tmp/figr-m2-firefox.json`, matching screenshots, and `/tmp/figr-m2-render-error.png`. Browser-tooling correction: the Chrome CDP observer selected an internal new-tab target on its first attempt; selecting the actual host URL fixed the probe without changing any product assertion.
+- `npm run typecheck`, `npm run build`, and agent regeneration succeeded. `git diff f392e11 -- backend agent shared package-lock.json` was empty: no backend/HTML/agent/protocol/dependency change. The only fixed-decision clarification is owner-approved D7 retry-generation dedupe.
+- Scope: M2 failure infrastructure is complete; no screens API/grid/pan/zoom product work, inspector/layers, page-error badges or full failure matrix was built. Those remain M3 onward.

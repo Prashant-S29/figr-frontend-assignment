@@ -1,7 +1,10 @@
-// Exposes diagnostic console output in development or ?dev; it does not decide or report failures.
-/** Emits diagnostics only when the host explicitly runs with development visibility. */
+// Exposes explicitly enabled diagnostic console output; it does not detect failures or require a browser during unit tests.
+let enabled = false;
+
+/** Sets visibility once at host bootstrap from Vite dev mode or the ?dev query. */
+export function enableDevLog(visible: boolean): void { enabled = visible; }
+
+/** Emits diagnostics only while the host runs with development visibility. */
 export function devLog(label: string, value: unknown): void {
-  if (import.meta.env.DEV || new URLSearchParams(window.location.search).has("dev")) {
-    console.log(label, value);
-  }
+  if (enabled) console.log(label, value);
 }

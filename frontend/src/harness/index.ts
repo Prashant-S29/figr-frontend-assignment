@@ -1,10 +1,15 @@
-// Drives the disposable M1 overlay gate; this is not product UI and failure/report routing is introduced in M2.
+// Drives the disposable M1 preview with M2 scoped failure routing; it does not own product board state or failure presentation.
 import { isAgentMessage, isHello, type AgentMessage, type HostMessage, type Mode } from "../../../shared/protocol";
+import { fail } from "../core/fail";
+import { guard } from "../core/guard";
+import { scopedTimeout } from "../core/schedule";
+import { createScope, type Scope } from "../core/scope";
+import type { FailureRegion } from "../stores/failure-region";
 import "./style.css";
 
-/** Mounts a single sandboxed preview and text-only protocol probes before the iframe starts loading. */
-export function startHarness(): void {
-  const root = document.getElementById("root")!;
+/** Mounts one temporary preview, binding handlers/resources to the host and preview lifetimes. */
+export function startHarness(root: HTMLElement, preview: FailureRegion, parent: Scope): () => void {
+  const lifetime = createScope(parent);
   root.innerHTML = `<main data-testid="m1-harness">
     <h1>M1 overlay gate — disposable harness</h1>
     <div class="controls">
@@ -34,7 +39,6 @@ export function startHarness(): void {
   iframe.height = "800";
   iframe.sandbox.add("allow-scripts", "allow-same-origin", "allow-forms");
   const page = root.querySelector<HTMLSelectElement>('[data-testid="page"]')!;
-  const screenId = "m1-preview";
   const origin = "http://localhost:4001";
   let port: MessagePort | null = null;
   let instanceId: string | null = null;
@@ -42,30 +46,33 @@ export function startHarness(): void {
   let ready = false;
   let requestId = 0;
   let pendingPing: number | null = null;
-  let deadline: ReturnType<typeof setTimeout> | undefined;
+  let cancelDeadline: (() => void) | undefined;
+  let connectionScope: Scope | undefined;
+  let generation = preview.getSnapshot().generation;
 
   /** Writes probe values as text; no page-originated value ever enters the static harness markup. */
   function output(testId: string, value: unknown): void {
     root.querySelector(`[data-testid="${testId}"]`)!.textContent = typeof value === "string" ? value : JSON.stringify(value);
   }
 
-  /** Displays a harness failure without calling report() before the M2 failure core exists. */
+  /** Routes an agent failure through the preview's current region owner exactly once. */
   function failure(error: unknown): void {
-    output("error", `${screenId}: ${error instanceof Error ? error.message : String(error)}`);
+    const target = preview.target;
+    fail(target.region, error, target.ctx);
   }
 
-  /** Keeps thrown harness callbacks visible instead of losing them in browser event dispatch. */
+  /** Resolves the current preview generation for synchronous toolbar/window entry points. */
   function protect(handler: EventListener): EventListener {
-    /** Displays synchronous errors from this temporary harness entry point. */
+    /** Ignores disposed harness entry points and delegates all error handling to the shared guard. */
     return function guarded(event: Event): void {
-      try { handler(event); } catch (error) { failure(error); }
+      if (lifetime.alive) guard(preview.target, handler)(event);
     };
   }
 
   /** Clears the single connection/liveness deadline when its attempt is replaced or completes. */
   function clearDeadline(): void {
-    clearTimeout(deadline);
-    deadline = undefined;
+    cancelDeadline?.();
+    cancelDeadline = undefined;
   }
 
   /** Marks only this probe as disconnected after the PRD's ten-second deadline. */
@@ -73,18 +80,14 @@ export function startHarness(): void {
     ready = false;
     pendingPing = null;
     output("connection", "Couldn't connect to this preview");
-    failure(new Error("Agent deadline exceeded"));
+    throw new Error("Agent deadline exceeded");
   }
 
   /** Starts one deadline for either a handshake or a pending ping. */
   function armDeadline(): void {
     clearDeadline();
-    deadline = setTimeout(timedExpiry, 10_000);
-  }
-
-  /** Contains failures at the timer entry point; the permanent scope helper arrives in M2. */
-  function timedExpiry(): void {
-    try { expired(); } catch (error) { failure(error); }
+    const target = preview.target;
+    cancelDeadline = scopedTimeout(connectionScope ? { ...target, ctx: { ...target.ctx, scope: connectionScope } } : target, expired, 10_000);
   }
 
   /** Sends host commands exclusively through the current private connection. */
@@ -135,6 +138,9 @@ export function startHarness(): void {
     if (!isHello(input.data)) throw new Error("Invalid preview hello");
     if (instanceId === input.data.instanceId) return;
     port?.close();
+    connectionScope?.dispose();
+    connectionScope = createScope(preview.target.ctx.scope);
+    const target = { ...preview.target, ctx: { ...preview.target.ctx, scope: connectionScope } };
     const channel = new MessageChannel();
     const connection = channel.port1;
     port = connection;
@@ -143,7 +149,6 @@ export function startHarness(): void {
     pendingPing = null;
     output("hover", null);
     output("selection", null);
-    output("error", "none");
     armDeadline();
     /** Ignores a replaced port and rejects malformed current-instance intents before using them. */
     function privateMessage(event: Event): void {
@@ -153,8 +158,8 @@ export function startHarness(): void {
       if ((data.type === "hover" || data.type === "select") && data.target && !data.target.elementId.startsWith(`${instanceId}:`)) throw new Error("Target instance mismatch");
       receive(data);
     }
-    connection.addEventListener("message", protect(privateMessage));
-    connection.addEventListener("messageerror", protect(deserializationError));
+    connection.addEventListener("message", guard(target, privateMessage), { signal: connectionScope.signal });
+    connection.addEventListener("messageerror", guard(target, deserializationError), { signal: connectionScope.signal });
     connection.start();
     iframe.contentWindow!.postMessage({ type: "connect", instanceId, mode }, origin, [channel.port2]);
   }
@@ -172,13 +177,15 @@ export function startHarness(): void {
     armDeadline();
   }
 
-  /** Contains interval callback exceptions within the harness probe. */
+  /** Uses the current generation for each liveness entry without executing after harness disposal. */
   function heartbeat(): void {
-    try { ping(); } catch (error) { failure(error); }
+    if (lifetime.alive) guard(preview.target, ping)();
   }
 
   /** Loads a requested kit page without using its URL as preview identity. */
   function navigate(): void {
+    connectionScope?.dispose();
+    connectionScope = undefined;
     port?.close();
     port = null;
     instanceId = null;
@@ -188,6 +195,9 @@ export function startHarness(): void {
     armDeadline();
     iframe.src = `${origin}/${page.value}`;
   }
+
+  /** Replaces the preview generation for explicit reload/page-choice actions, cancelling its prior work first. */
+  function reload(): void { preview.retry(); }
 
   /** Drives Select mode from the harness toolbar. */
   function selectMode(): void { setMode("select"); }
@@ -202,14 +212,36 @@ export function startHarness(): void {
     if (input.key.toLowerCase() === "i") setMode("interact");
   }
 
-  window.addEventListener("message", protect(hello));
-  window.addEventListener("keydown", protect(key));
-  page.addEventListener("change", protect(navigate));
+  /** Reads region-owned errors and reconnects only when Retry starts a new preview generation. */
+  function regionChanged(): void {
+    const snapshot = preview.getSnapshot();
+    output("error", snapshot.failure?.message ?? "none");
+    if (snapshot.generation !== generation) {
+      generation = snapshot.generation;
+      guard(preview.target, navigate)();
+    }
+  }
+
+  window.addEventListener("message", protect(hello), { signal: lifetime.signal });
+  window.addEventListener("keydown", protect(key), { signal: lifetime.signal });
+  page.addEventListener("change", protect(reload), { signal: lifetime.signal });
   root.querySelector('[data-testid="select-mode"]')!.addEventListener("click", protect(selectMode));
   root.querySelector('[data-testid="interact-mode"]')!.addEventListener("click", protect(interactMode));
   root.querySelector('[data-testid="ping"]')!.addEventListener("click", protect(ping));
-  root.querySelector('[data-testid="reload"]')!.addEventListener("click", protect(navigate));
-  setInterval(heartbeat, 5_000);
+  root.querySelector('[data-testid="reload"]')!.addEventListener("click", protect(reload));
+  const heartbeatTimer = setInterval(heartbeat, 5_000);
+  const unsubscribe = preview.subscribe(regionChanged);
+  /** Disposes timers, ports and subscriptions before removing this region's DOM island. */
+  function dispose(): void {
+    clearInterval(heartbeatTimer);
+    clearDeadline();
+    connectionScope?.dispose();
+    port?.close();
+    unsubscribe();
+    root.replaceChildren();
+  }
+  lifetime.signal.addEventListener("abort", dispose, { once: true });
   root.appendChild(iframe);
   navigate();
+  return lifetime.dispose;
 }
