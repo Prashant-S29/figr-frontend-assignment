@@ -1,5 +1,6 @@
-// Owns screens, preview lifetimes and mode; selection owns inspection state, viewport owns motion and later stores own tree/inspector.
+// Owns screens, preview lifetimes and mode; selection/inspector stores own inspection state, viewport owns motion and Layers remain later work.
 import type { AgentMessage, HostMessage, Mode } from "../../../shared/protocol";
+import type { ElementDetailsQuery } from "../api/elements";
 import { fetchScreens } from "../api/screens";
 import { runAttempt } from "../core/attempt";
 import { registerDevTrigger } from "../core/dev-registry";
@@ -9,6 +10,7 @@ import type { FailureRegion } from "./failure-region";
 import { createPreview, type PreviewStore } from "./preview";
 import { createViewport } from "./viewport";
 import { createSelection } from "./selection";
+import { createInspector } from "./inspector";
 
 export interface BoardSnapshot { readonly loading: boolean; readonly previews: readonly PreviewStore[]; readonly mode: Mode; readonly renderError: Error | null }
 
@@ -21,11 +23,20 @@ export function createBoard(region: FailureRegion, dev: boolean) {
   let disposed = false;
   const listeners = new Set<() => void>();
   const selection = createSelection(boardTarget, sendInspection);
+  const inspector = createInspector(selection, boardTarget, dev, elementQuery());
   const viewport = createViewport(boardTarget, clearHover);
   const removeTriggers: (() => void)[] = [];
 
   /** Supplies current ownership only for newly entered board work. */
   function boardTarget() { return region.target; }
+  /** Reads optional host verification controls for Details only, leaving the screens request independently owned. */
+  function elementQuery(): ElementDetailsQuery {
+    const parameters = new URLSearchParams(window.location.search);
+    const latencyValue = Number(parameters.get("latency"));
+    const latency = parameters.has("latency") && Number.isFinite(latencyValue) && latencyValue >= 0 ? latencyValue : undefined;
+    const fail = parameters.has("fail") && Number(parameters.get("fail")) > 0;
+    return { latency, fail };
+  }
   /** Publishes a complete shared snapshot rather than letting React own product state. */
   function update(next: BoardSnapshot): void { snapshot = next; for (const listener of listeners) listener(); }
   /** Returns the current board-generation product snapshot. */
@@ -195,10 +206,11 @@ export function createBoard(region: FailureRegion, dev: boolean) {
     for (const remove of removeTriggers) remove();
     for (const preview of snapshot.previews) preview.dispose();
     viewport.dispose();
+    inspector.dispose();
     selection.dispose();
     listeners.clear();
   }
   guard(region.target, load)();
-  return { region, viewport, selection, getSnapshot, subscribe, setMode, clearHover, setDragging, dispose };
+  return { region, viewport, selection, inspector, getSnapshot, subscribe, setMode, clearHover, setDragging, dispose };
 }
 export type BoardStore = ReturnType<typeof createBoard>;

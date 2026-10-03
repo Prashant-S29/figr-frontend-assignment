@@ -2,7 +2,21 @@
 export type Mode = "select" | "interact";
 export interface Target { elementId: string; name: string }
 export interface Rect { x: number; y: number; width: number; height: number }
-export interface Geometry extends Target { box: Rect | null; clip: Rect | null }
+export interface LiveData {
+  dataKey: string | null;
+  tag: string;
+  id: string;
+  classes: string;
+  pageX: number;
+  pageY: number;
+  text: string;
+  textColor: string;
+  backgroundColor: string;
+  fontFamily: string;
+  fontSize: string;
+  fontWeight: string;
+}
+export interface Geometry extends Target { box: Rect | null; clip: Rect | null; live: LiveData | null }
 export type Direction = "child" | "parent" | "next" | "previous";
 export interface Hello { type: "hello"; instanceId: string }
 export interface Connect { type: "connect"; instanceId: string; mode: Mode }
@@ -69,11 +83,22 @@ function rect(value: unknown): value is Rect {
   return record(value) && finite(value.x) && finite(value.y) && finite(value.width) && value.width >= 0 && finite(value.height) && value.height >= 0;
 }
 
+/** Validates bounded page-owned inspector values before host state can render or aggregate them. */
+function live(value: unknown): value is LiveData {
+  return record(value) && (value.dataKey === null || typeof value.dataKey === "string")
+    && typeof value.tag === "string" && value.tag.length > 0
+    && typeof value.id === "string" && typeof value.classes === "string"
+    && finite(value.pageX) && finite(value.pageY)
+    && typeof value.text === "string" && value.text.length <= 120
+    && typeof value.textColor === "string" && typeof value.backgroundColor === "string"
+    && typeof value.fontFamily === "string" && typeof value.fontSize === "string" && typeof value.fontWeight === "string";
+}
+
 /** Requires an element/preview intersection or explicit invisibility; far edges allow only subpixel arithmetic roundoff. */
 function geometry(value: unknown): value is Geometry {
   if (!record(value) || !target(value)) return false;
-  if (value.box === null) return value.clip === null;
-  if (!rect(value.box)) return false;
+  if (value.box === null) return value.clip === null && value.live === null;
+  if (!rect(value.box) || !live(value.live)) return false;
   if (value.clip === null) return true;
   if (!rect(value.clip)) return false;
   const box = value.box;

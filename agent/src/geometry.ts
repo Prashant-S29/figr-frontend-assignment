@@ -1,5 +1,5 @@
-// Measures only host-tracked identities once per animation frame, including overflow clips; no selection state or whole-DOM polling is owned here.
-import type { AgentMessage, Geometry, Rect } from "../../shared/protocol";
+// Measures only host-tracked identities once per animation frame, including overflow clips and Live inspector values; no selection state or whole-DOM polling is owned here.
+import type { AgentMessage, Geometry, LiveData, Rect } from "../../shared/protocol";
 import type { Identity } from "./identity";
 import { native } from "./native";
 
@@ -36,6 +36,27 @@ function clipped(element: Element, rect: Rect): Rect | null {
   return right > left && bottom > top ? { x: left, y: top, width: right - left, height: bottom - top } : null;
 }
 
+/** Reads bounded text/attributes, document position and computed typography for one connected tracked element. */
+function live(element: Element, rect: Rect): LiveData {
+  const style = native.getComputedStyle(element);
+  const classes = (native.getAttribute.call(element, "class") ?? "").trim().replace(/\s+/g, " ");
+  const text = (element.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+  return {
+    dataKey: native.getAttribute.call(element, "data-key"),
+    tag: element.tagName.toLowerCase(),
+    id: native.getAttribute.call(element, "id") ?? "",
+    classes,
+    pageX: rect.x + window.scrollX,
+    pageY: rect.y + window.scrollY,
+    text,
+    textColor: style.color,
+    backgroundColor: style.backgroundColor,
+    fontFamily: style.fontFamily,
+    fontSize: style.fontSize,
+    fontWeight: style.fontWeight,
+  };
+}
+
 /** Maintains a cancellable tracked-only poller; old revisions cannot publish into a newly bootstrapped connection. */
 export function createGeometry(identity: Identity, send: (message: AgentMessage) => void, failure: (error: unknown) => void) {
   let revision = 0;
@@ -46,9 +67,9 @@ export function createGeometry(identity: Identity, send: (message: AgentMessage)
   /** Measures the current uniquely proven binding without substituting an ambiguous sibling. */
   function measure(elementId: string): Geometry {
     const element = identity.lookup(elementId);
-    if (!element) return { elementId, name: "", box: null, clip: null };
+    if (!element) return { elementId, name: "", box: null, clip: null, live: null };
     const rect = box(element);
-    return { elementId, name: identity.describe(element)!.name, box: rect, clip: clipped(element, rect) };
+    return { elementId, name: identity.describe(element)!.name, box: rect, clip: clipped(element, rect), live: live(element, rect) };
   }
   /** Contains rAF exceptions inside the agent and emits only changed geometry for the latest exact tracked set. */
   function frame(): void {

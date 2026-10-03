@@ -1,9 +1,10 @@
-// Presents the product toolbar and board failure boundary; stores own all shared state and later panels are not implemented here.
+// Presents the product toolbar, isolated board and Inspector regions; stores own all shared state and Layers remain later work.
 import { useSyncExternalStore } from "react";
 import { guard } from "../core/guard";
 import type { BoardStore } from "../stores/board";
 import { Board } from "./Board";
 import { RegionBoundary } from "./RegionBoundary";
+import { Inspector } from "./Inspector";
 
 function Toolbar({ board }: { board: BoardStore }) {
   const { mode } = useSyncExternalStore(board.subscribe, board.getSnapshot);
@@ -22,8 +23,11 @@ function Toolbar({ board }: { board: BoardStore }) {
 export function App({ board }: { board: BoardStore }) {
   return <main className="app" data-testid="app">
     <Toolbar board={board} />
-    <section className="board-region" data-testid="board-region">
-      <RegionBoundary region={board.region} testId="board"><Board board={board} /></RegionBoundary>
-    </section>
+    <div className="workspace" data-testid="workspace">
+      <section className="board-region" data-testid="board-region">
+        <RegionBoundary region={board.region} testId="board"><Board board={board} /></RegionBoundary>
+      </section>
+      <Inspector store={board.inspector} />
+    </div>
   </main>;
 }
