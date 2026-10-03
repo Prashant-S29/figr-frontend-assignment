@@ -25,6 +25,7 @@ export function createPreview(screen: Screen, parent: Scope, intents: PreviewInt
   let cancelDeadline: (() => void) | undefined;
   let cancelHeartbeat: (() => void) | undefined;
   let pendingPing: number | null = null;
+  let messageFault: Error | null = null;
   let sequence = 0;
   let generation = region.getSnapshot().generation;
   let blockNext = false;
@@ -49,6 +50,7 @@ export function createPreview(screen: Screen, parent: Scope, intents: PreviewInt
     port?.close();
     port = null;
     pendingPing = null;
+    messageFault = null;
   }
   /** Converts both handshake and ping expiry into the same preview-only fallback. */
   function expired(): void { throw new Error("Couldn't connect to this preview"); }
@@ -121,6 +123,11 @@ export function createPreview(screen: Screen, parent: Scope, intents: PreviewInt
     function privateMessage(event: MessageEvent<unknown>): void {
       if (port !== current) return;
       if (!isAgentMessage(event.data)) throw new Error("Invalid agent message");
+      if (messageFault) {
+        const error = messageFault;
+        messageFault = null;
+        throw error;
+      }
       receive(event.data);
     }
     current.addEventListener("message", guard(target(), privateMessage), { signal: connection.signal });
@@ -162,10 +169,18 @@ export function createPreview(screen: Screen, parent: Scope, intents: PreviewInt
   }
   const unsubscribeRegion = region.subscribe(regionChanged);
   /** Injects an actual never-answering handshake for the dev menu, retaining the normal ten-second deadline. */
-  function noConnect(): void { blockNext = true; region.retry(); }
+  function noConnect(): void { armNoConnect(); region.retry(); }
+  /** Arms only this preview's next Retry generation to use the normal connection timeout. */
+  function armNoConnect(): void { blockNext = true; }
   /** Exercises the same nonfatal page-event path from the dev menu without touching cross-origin page DOM. */
   function injectPageError(): void {
     if (snapshot.phase === "ready") guard(target(), receive)({ type: "page-error", message: "Injected page error" });
+  }
+  /** Throws from the real authenticated private message handler on the next live reply, using an ordinary ping round trip. */
+  function injectMessageFailure(): void {
+    if (snapshot.phase !== "ready") return;
+    messageFault = new Error("Preview message handler failure");
+    ping();
   }
   /** Returns the stable connection/badge snapshot. */
   function getSnapshot(): PreviewSnapshot { return snapshot; }
@@ -179,6 +194,6 @@ export function createPreview(screen: Screen, parent: Scope, intents: PreviewInt
   function dispose(): void { disconnect(); frame = null; unsubscribeRegion(); region.dispose(); listeners.clear(); }
   /** Exposes host geometry for coordinate conversion without ever reading the iframe's cross-origin DOM. */
   function getFrame(): HTMLIFrameElement | null { return frame; }
-  return { screen, region, getSnapshot, subscribe, attach, discover, send, noConnect, injectPageError, dispose, getFrame, getTarget: target };
+  return { screen, region, getSnapshot, subscribe, attach, discover, send, noConnect, armNoConnect, injectPageError, injectMessageFailure, dispose, getFrame, getTarget: target };
 }
 export type PreviewStore = ReturnType<typeof createPreview>;

@@ -75,7 +75,9 @@ export function createLayers(
   let revealAttempt: Attempt | null = null;
   let hoverAttempt: Attempt | null = null;
   let failNextParent: string | null = null;
+  let skipNextParent: string | null = null;
   let skipNextSearch = false;
+  let renderRetryError: Error | null = null;
   const readyScreens = new Set<string>();
   const remembered = new Map<string, LayersSnapshot>();
   const positions = new Map<string, { top: number; left: number }>();
@@ -131,6 +133,9 @@ export function createLayers(
     cancelSearchDeadline?.();
     cancelSearchDeadline = null;
     searchRequest = 0;
+    renderRetryError = null;
+    failNextParent = skipNextParent = null;
+    skipNextSearch = false;
     rootAttempt?.cancel();
     revealAttempt?.cancel();
     hoverAttempt?.cancel();
@@ -145,6 +150,17 @@ export function createLayers(
       row.region.dispose();
     }
     rowOwners.clear();
+  }
+
+  /** Cancels child/reveal work when the whole Layers fallback removes its visible rows. */
+  function panelRegion(screenId: string): FailureRegion {
+    const region = createFailureRegion("layers", { screenId }, owner().ctx.scope);
+    /** Makes removed child attempts silent before any queued response or timeout can arrive. */
+    function changed(): void {
+      if (snapshot.region === region && region.getSnapshot().failure) clearWork();
+    }
+    region.subscribe(changed);
+    return region;
   }
 
   /** Replaces the active preview's whole Layers owner, including page-instance-local ids and in-flight replies. */
@@ -162,7 +178,7 @@ export function createLayers(
       publish(emptySnapshot(snapshot.revision + 1));
       return;
     }
-    const region = createFailureRegion("layers", { screenId }, owner().ctx.scope);
+    const region = panelRegion(screenId);
     const saved = !force ? remembered.get(screenId) : undefined;
     publish({ ...(saved ?? emptySnapshot(snapshot.revision + 1)), revision: snapshot.revision + 1, screenId, region, rootLoading: !saved && readyScreens.has(screenId), scrollId: null });
     if (readyScreens.has(screenId)) {
@@ -200,7 +216,8 @@ export function createLayers(
       const cancelTimeout = scopedTimeout(target, () => failRequest(new Error("Couldn't load")), 3_000);
       pendingChildren.set(correlation, { parentId, resolve: complete, reject: failRequest, cancel: abort });
       signal.addEventListener("abort", abort, { once: true });
-      send(snapshot.screenId!, { type: "tree-children", requestId: correlation, parentElementId: parentId });
+      if (parentId !== null && skipNextParent === parentId) skipNextParent = null;
+      else send(snapshot.screenId!, { type: "tree-children", requestId: correlation, parentElementId: parentId });
     }
     return new Promise(create);
   }
@@ -543,7 +560,7 @@ export function createLayers(
     if (snapshot.screenId !== screenId) return;
     clearWork();
     snapshot.region?.dispose();
-    const region = createFailureRegion("layers", { screenId }, owner().ctx.scope);
+    const region = panelRegion(screenId);
     selectionToken = hoverToken = "";
     publish({ ...emptySnapshot(snapshot.revision + 1), screenId, region });
   }
@@ -650,10 +667,11 @@ export function createLayers(
     const region = snapshot.region;
     if (!screenId || !region) return;
     const prior = snapshot;
+    const retryError = renderRetryError;
     const rows = new Map([...prior.rows].filter(([, state]) => state.kind === "loaded"));
     clearWork();
     selectionToken = hoverToken = "";
-    publish({ ...prior, revision: prior.revision + 1, region, rows, renderError: null, scrollId: null });
+    publish({ ...prior, revision: prior.revision + 1, region, rows, renderError: retryError, scrollId: null });
     if (readyScreens.has(screenId)) {
       loadRoot();
       watchTree();
@@ -663,9 +681,10 @@ export function createLayers(
     synchronizeSelection();
   }
 
-  /** Forces the next request for one expandable row through its real isolated failure path. */
-  function injectRowFailure(): void {
-    const node = visibleTreeRows(relations()).map(row => snapshot.nodes.get(row.elementId)).find(value => value?.hasChildren);
+  /** Restarts one expandable row through its real failure or three-second no-answer path, unsubscribing its old level first. */
+  function injectRowRequest(timeout: boolean): void {
+    const candidates = visibleTreeRows(relations()).map(row => snapshot.nodes.get(row.elementId)).filter(value => value?.hasChildren);
+    const node = candidates.find(value => snapshot.rows.get(value!.elementId)?.kind !== "loaded") ?? candidates[0];
     if (!node) return;
     const prior = rowOwners.get(node.elementId);
     if (prior) {
@@ -679,10 +698,18 @@ export function createLayers(
     children.delete(node.elementId);
     const expanded = new Set(snapshot.expanded);
     expanded.add(node.elementId);
-    failNextParent = node.elementId;
+    if (timeout) skipNextParent = node.elementId;
+    else failNextParent = node.elementId;
     publish({ ...snapshot, rows, children, expanded });
+    watchTree();
     loadRow(node.elementId);
   }
+
+  /** Makes one row fail while every sibling remains usable. */
+  function injectRowFailure(): void { injectRowRequest(false); }
+
+  /** Leaves one actual registered child request unanswered until its normal row deadline. */
+  function injectRowTimeout(): void { injectRowRequest(true); }
 
   /** Leaves a real search unanswered so its normal three-second Layers deadline is exercised. */
   function injectSearchTimeout(): void {
@@ -691,6 +718,15 @@ export function createLayers(
     if (snapshot.query) requestSearch();
     else setQuery("Setting 30.10");
   }
+
+  /** Arms the failed row's real Retry without creating a failure before that click. */
+  function armRowRetry(): void {
+    const row = [...snapshot.rows].find(([, state]) => state.kind === "error");
+    if (row) failNextParent = row[0];
+  }
+
+  /** Arms an explicit whole-Layers Retry to rethrow its prior render identity in a fresh generation. */
+  function armPanelRetry(): void { if (snapshot.region) renderRetryError = snapshot.renderError ?? new Error("Layers retry render failure"); }
 
   /** Throws from the actual Layers render path while retaining board and Inspector state. */
   function injectRenderFailure(): void { publish({ ...snapshot, renderError: new Error("Layers render failure") }); }
@@ -701,7 +737,10 @@ export function createLayers(
   if (dev) {
     removeTriggers.push(
       registerDevTrigger({ id: "layers-row-fail", label: "Layers row load fails", target: layersTarget, run: injectRowFailure }),
+      registerDevTrigger({ id: "layers-row-timeout", label: "Layers row never answers (3s)", target: layersTarget, run: injectRowTimeout }),
       registerDevTrigger({ id: "layers-search-timeout", label: "Layers search never answers (3s)", target: layersTarget, run: injectSearchTimeout }),
+      registerDevTrigger({ id: "layers-row-retry-fail", label: "Next failed Layers row Retry fails once", target: layersTarget, run: armRowRetry }),
+      registerDevTrigger({ id: "layers-retry-fail", label: "Next Layers Retry rethrows render error", target: layersTarget, run: armPanelRetry }),
       registerDevTrigger({ id: "layers-render", label: "Layers render fails", target: layersTarget, run: injectRenderFailure }),
     );
   }

@@ -1,4 +1,5 @@
 // Owns screens, preview lifetimes and mode; selection, Layers and Inspector stores own inspection state while viewport owns motion.
+import { attributeError } from "../core/fail";
 import type { AgentMessage, HostMessage, Mode } from "../../../shared/protocol";
 import type { ElementDetailsQuery } from "../api/elements";
 import { fetchScreens } from "../api/screens";
@@ -22,6 +23,7 @@ export function createBoard(region: FailureRegion, dev: boolean) {
   let failing = false;
   let dragging = false;
   let disposed = false;
+  let keyFault: Error | null = null;
   const listeners = new Set<() => void>();
   const selection = createSelection(boardTarget, sendInspection);
   const layers = createLayers(selection, boardTarget, sendInspection, dev);
@@ -124,6 +126,7 @@ export function createBoard(region: FailureRegion, dev: boolean) {
   }
   /** Handles host-focused shortcuts with the same state owner as iframe-forwarded keys. */
   function key(event: KeyboardEvent): void {
+    if (keyFault) { const error = keyFault; keyFault = null; throw error; }
     const active = document.activeElement;
     const editable = !!active && (active.matches("input,textarea,select") || (active instanceof HTMLElement && active.isContentEditable));
     const handled = shortcut(event.key, editable, event.ctrlKey || event.metaKey || event.altKey, event.shiftKey);
@@ -155,6 +158,7 @@ export function createBoard(region: FailureRegion, dev: boolean) {
     generation = state.generation;
     for (const preview of snapshot.previews) preview.dispose();
     dragging = false;
+    keyFault = null;
     viewport.reset();
     selection.reset();
     layers.reset();
@@ -174,6 +178,10 @@ export function createBoard(region: FailureRegion, dev: boolean) {
 
   /** Retries the real screens endpoint with its built-in fail=1 response variations. */
   function screensFail(): void { failing = true; region.retry(); }
+  /** Arms the real screens fail=1 endpoint for the board's visible Retry button. */
+  function armScreensFailure(): void { failing = true; }
+  /** Arms a never-answering replacement for the first preview's visible Retry button. */
+  function armPreviewFailure(): void { snapshot.previews[0]?.armNoConnect(); }
   /** Selects one screen's real handshake deadline, leaving the remaining previews intact. */
   function noConnect(): void { snapshot.previews[0]?.noConnect(); }
   /** Triggers a nonfatal preview badge/report through the same scoped page-event dispatcher. */
@@ -188,6 +196,20 @@ export function createBoard(region: FailureRegion, dev: boolean) {
   function previewTarget() { return snapshot.previews[0]?.region.target ?? region.target; }
   /** Exercises a synchronous board entry point with the shared failure path. */
   function handlerError(): void { throw new Error("Board handler failure"); }
+  /** Dispatches a native key event through the actual board keyboard entry point. */
+  function keyError(): void {
+    keyFault = new Error("Board key handler failure");
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "F9" }));
+  }
+  /** Exercises the actual authenticated private message callback on one preview without changing the protocol. */
+  function messageError(): void { snapshot.previews[0]?.injectMessageFailure(); }
+  /** Delivers one attributed identity through both global catch paths so their duplicate report is suppressed. */
+  function globalError(): void {
+    const error = new Error("Board global failure");
+    attributeError(error, region.target);
+    window.dispatchEvent(new ErrorEvent("error", { error, message: error.message, cancelable: true }));
+    window.dispatchEvent(new PromiseRejectionEvent("unhandledrejection", { promise: Promise.resolve(), reason: error, cancelable: true }));
+  }
   /** Injects a real React board render error for the regional boundary. */
   function renderError(): void { update({ ...snapshot, renderError: new Error("Board render failure") }); }
   /** Exercises a board-owned guarded drawing callback. */
@@ -197,10 +219,15 @@ export function createBoard(region: FailureRegion, dev: boolean) {
   if (dev) {
     removeTriggers.push(
       registerDevTrigger({ id: "screens-fail", label: "Screens request fails", target: boardTarget, run: screensFail }),
+      registerDevTrigger({ id: "board-retry-fail", label: "Next board Retry fails once", target: boardTarget, run: armScreensFailure }),
+      registerDevTrigger({ id: "preview-retry-fail", label: "Next first-preview Retry never connects", target: previewTarget, run: armPreviewFailure }),
       registerDevTrigger({ id: "preview-no-connect", label: "First preview never connects (10s)", target: previewTarget, run: noConnect }),
       registerDevTrigger({ id: "page-error", label: "First preview page error", target: previewTarget, run: pageError }),
       registerDevTrigger({ id: "outline-draw", label: "Preview outline drawing fails", target: boardTarget, run: outlineError }),
-      registerDevTrigger({ id: "board-handler", label: "Board handler fails", target: boardTarget, run: handlerError }),
+      registerDevTrigger({ id: "board-handler", label: "Board click handler fails", target: boardTarget, run: handlerError }),
+      registerDevTrigger({ id: "board-key", label: "Board key handler fails", target: boardTarget, run: keyError }),
+      registerDevTrigger({ id: "preview-message", label: "First preview message handler fails", target: previewTarget, run: messageError }),
+      registerDevTrigger({ id: "board-global", label: "Board global catches dedupe one error", target: boardTarget, run: globalError }),
       registerDevTrigger({ id: "render", label: "Board render fails", target: boardTarget, run: renderError }),
       registerDevTrigger({ id: "frame", label: "Board drawing fails", target: boardTarget, run: frameError }),
       registerDevTrigger({ id: "timer", label: "Board timer fails", target: boardTarget, run: timerError }),

@@ -27,6 +27,11 @@ export async function fetchElementDetails(key: string, signal: AbortSignal, quer
   if (query.fail) search.set("fail", "1");
   const suffix = search.size ? `?${search}` : "";
   const response = await fetch(`http://localhost:4000/elements/${encodeURIComponent(key)}${suffix}`, { signal });
+  return readElementDetails(response);
+}
+
+/** Reads a response through the same status, JSON and complete-shape boundary for network and dev fault bodies. */
+export async function readElementDetails(response: Response): Promise<ElementDetailsResult> {
   if (response.status === 404) return { kind: "not-found" };
   if (!response.ok) throw new Error(`Couldn't load details (${response.status})`);
   const body: unknown = await response.json();

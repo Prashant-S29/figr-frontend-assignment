@@ -3,8 +3,8 @@
 Update at the start and end of every milestone, and whenever a decision, gate or limitation appears. Keep entries short and factual.
 
 ## Now
-- **Current milestone:** M9 (not started); M0–M8 are done
-- **Next action:** verify the complete R6 failure matrix and finish any missing dev triggers (M9 only)
+- **Current milestone:** M9 (in progress); M0–M8 are done
+- **Next action:** commit the verified M9 matrix and confirm clean deterministic agent regeneration, then close M9
 
 ## Milestones
 | ID | Name | Status | Verified (what, when) |
@@ -18,7 +18,7 @@ Update at the start and end of every milestone, and whenever a decision, gate or
 | M6 | Inspector | done | 2026-10-03: final typecheck/build and 27 unit checks passed; Chrome/Firefox M6 gate passed (`2 passed`, 1.1m): Live updates/safe text, multi Mixed values, latest-only Details, no-key/404, malformed/fail isolation and Retry, render boundary, missing state. M5, M4 and M3 browser regressions passed both browsers. |
 | M7 | Layers: tree and sync | done | 2026-10-03: final typecheck/build and 30 unit checks passed; Chrome/Firefox M7 gate passed (`2 passed`, 34.2s): lazy rows, one in-flight request, 3s row timeout/Retry, bidirectional sync, ~30-level Page 5 reveal, page-only scrolling, arrow navigation and isolated row/whole-Layers failures. M6–M3 browser regressions passed both browsers. | |
 | M8 | Layers: persistence, live updates, search | done | 2026-10-03: final typecheck/build and 34 unit checks pass; M8 acceptance/lifecycle probes and M7–M3 regressions pass Chrome/Firefox; Chrome development smoke passes. Implementation `81c05b6`; agent regeneration leaves git clean. |
-| M9 | Failure matrix | not started | |
+| M9 | Failure matrix | in progress | 2026-10-03: matrix passes Chrome/Firefox (72 expected reports each), latest expanded lifetime probes pass both, M8–M3 regressions pass both, development smoke and final typecheck/build/34 unit checks pass. Commit/clean-tree confirmation pending. |
 | M10 | Verification and hardening | not started | |
 | M11 | Deliverables | not started | |
 
@@ -55,7 +55,7 @@ Append only. Anything that changes a PRD `D*` item, the protocol, or adds a depe
 ## Known limitations
 Feeds the README "where this breaks". Add as discovered: what breaks, when, and why.
 
-_No unresolved M1–M8 gate defects found in the completed checks. Full product failure-matrix verification remains M9; formal performance verification remains M10._
+_No unresolved M1–M9 gate defects found in the completed checks. Formal submission E2E, full manual product verification and performance verification remain M10._
 
 - Native Interact scrolling follows the browser's gesture rules: Firefox can latch a wheel transaction to the nested container for 1500ms, so outward chaining at its boundary requires a new gesture. Select-mode emulation consumes the remainder immediately. This is native browser behavior, not an overlay fallback.
 
@@ -103,6 +103,14 @@ One line per working session: what changed, what is next.
 - 2026-10-03: Final M8 acceptance passed both browsers (2 passed, 1.4m), including search-only arrow expansion and literal restore through Retry. Additional lifecycle probes passed both (2 passed, 41.4s): late search replies silent, removed loading row cancels timeout/reply silently, inactive cached trees update, Interact tree stays live, inactive navigation resets only its cache, board reload drops memory. M7/M6 regressions pass. A disposable M5 hash probe needed to await its Select intent before snapshotting ids; remaining regressions and dev smoke continue.
 
 - 2026-10-03: M8 completed in `81c05b6`. Per-preview expansion/scroll, mutation-driven loaded-tree updates and whole-tree derived search pass Chrome/Firefox, all M7–M3 browser regressions pass, and Vite dev smoke/typecheck/build/34 unit checks pass. Regenerating the committed agent leaves git clean; protected backend/page inputs are unchanged. Verification servers and browser sessions were stopped. Next: M9 only.
+
+- 2026-10-03: M9 started. Auditing existing regional dev triggers and failure lifetimes against R6. Missing deterministic malformed Details, row timeout, real key/private-message/response entry faults and late/gone response/error demonstrations will be added without protocol, dependency or protected-backend changes. M10's five formal E2E cases remain deferred.
+
+- 2026-10-03: M9 added missing deterministic malformed-body, callback-source, row timeout, failed-Retry and stale/gone dev demonstrations. Audit also corrected hidden child lifetimes: Inspector fallback cancels Details (now parent-scoped), and whole-Layers fallback cancels row/reveal/search work. No wire/dependency changes. First browser launch was a tooling setup failure (production server had not started); services were started explicitly and the real gate/lifetime probes are running.
+
+- 2026-10-03: M9 matrix passed both browsers (2 passed, 6.8m), ending at exactly 72 expected reports each; all six regions and real callback sources, armed failed Retries and four silent late/gone probes passed. Hidden-child/global-attribution probes also passed. Final audit added an abort check before dev handoff side effects so an already-resolved old body cannot clear/retry a newer generation; expanded lifetime probes pass. M8–M3 regressions passed; Firefox fixture navigation now uses a genuine Interact link, and a transient Chrome CLI mouse command was retried only by restarting the full unchanged M4 probe after doctor passed. Final matrix rerun and dev-mode smoke remain.
+
+- 2026-10-03: M9 verification finished. Final matrix passes both browsers at exactly 72 reports each; expanded lifetime probes prove hidden-child cancellation, stale global attribution, obsolete same-region bodies and armed child faults stay silent after teardown. M8–M3 regressions and Chrome dev smoke pass. Final typecheck/build/34 unit tests/protected-input checks pass; no agent/protocol/dependency edits. Preparing milestone commits and clean-tree confirmation.
 
 ## M0 verification evidence
 
@@ -234,3 +242,25 @@ One line per working session: what changed, what is next.
 - Defects resolved: owner approved restoring the unexpectedly missing existing ready validator; Chrome regression then exposed a selection-scroll/native-scroll-event ordering race, fixed by synchronous layout capture. Search keyboard actions now change only the derived view, and clearing search invalidates pending reveal expansion. No unresolved M8 gate defect remains.
 - Final explicit typecheck/build, **34 browser-free unit checks**, agent regeneration, `git diff --check` and protected-input comparisons pass. Four new pure tree-state checks cover derived path order/independence, insertion with retained expansion, detached subtree pruning and same-batch reference-surviving moves. No dependency, fixed server/data or page HTML changes; the regenerated agent bundle is included. Local screenshots: `/tmp/figr-m8-chrome-agent-browser.png`, `/tmp/figr-m8-firefox.png`, `/tmp/figr-m8-dev.png`; logs are `/tmp/figr-m8-*.log`.
 - Committed implementation/build: `81c05b6`. `npm run build:agent` after commit produced no git changes. Production/development verification servers were stopped. M8 is complete; full failure-matrix verification remains M9, and formal E2E/performance/manual-product verification remains M10.
+
+## M9 verification evidence
+
+- Scope: completed missing R6 dev controls without changing protocol, dependencies, agent or protected backend/page files. Malformed Details JSON and wrong-shape 200 Responses pass through the production status/JSON/shape reader after a real fetch. Key faults enter the real host keyboard callback; private-message faults use an ordinary ping reply; response faults throw from real Details response application. Existing click, render, drawing/rAF and timer paths remain in place.
+- Full matrix: `/tmp/figr-m9-check/playwright.config.ts` passes **Chrome 153 through agent-browser and Playwright Firefox 155 (2 passed, 6.8m)**, with exactly **72 expected reports per browser**. Each live failure adds one failure/report log pair with identical message and correct region/screen/key; the 100-entry ring wraps without changing the total. Fatal-region triggers show only their own fallback, an armed actual Retry adds exactly one new failure, and the next healthy Retry adds none. Layers/Inspector render Retries deliberately reuse the original Error identity, proving retry-generation dedupe in actual React boundaries.
+
+| Region / context | Verified trigger paths | Isolation / Retry evidence |
+|---|---|---|
+| board / null | screens fail=1, click, real key callback, render, drawing/rAF, timer, one Error through both global catches | Board-only fallback; actual Retry fails via screens fail=1 once, then all 24 reconnect. Each board reload's four legitimate Docs rejections are awaited and counted separately. |
+| preview / scr-01 | real 10s no-connect deadline, authenticated private-message callback, actual outline drawing | Exactly one failed preview and 23 ready; scr-02's instance unchanged. Armed actual Retry uses the normal 10s deadline and reports once; healthy Retry restores 24. |
+| details / scr-01 / cta-primary | backend fail=1, malformed JSON, wrong shape, real response-application throw | Live name and selected Layers row remain usable; actual Retry may fail again once, then loads Button. No stale Details appears. |
+| layers-row / scr-01 | explicit load failure, real 3s no-answer deadline | Only that row shows Couldn't load; Inspector and 24 previews remain healthy. Armed row Retry fails once, then replaces with one non-duplicated child level. |
+| layers / scr-01 | actual render, real search no-answer deadline | Whole-Layers fallback only; Details/board remain live. Armed whole-panel Retry rethrows a render Error once, then recovers. |
+| inspector / scr-01 | actual React render | Inspector-only fallback; Layers and 24 previews keep working. Same Error on armed actual Retry reports as a new occurrence, then the latest Details owner is recreated. |
+
+- Nonfatal page errors: two distinct dev page-error occurrences on scr-01 each add one preview report and update its badge/title without disconnecting it. Native Docs errors remain four independent preview occurrences. A badge has no fatal fallback/Retry by R6.3; every fatal region above has its own Retry.
+- Stale/gone menu demonstrations: four deliberately unabortable completions (response/error after generation replacement, response/error after selection clear) each add **zero reports and zero regional errors**. Transport settlement runs under the board lifetime, but application and failure publication keep the original dead attempt. These are scoped dev probes, not raw host global overrides.
+- Latest lifetime probes: `/tmp/figr-m9-check/lifetimes.config.ts` passes **both browsers (2 passed, 1.2m)**. Whole-Inspector fallback cancels held Details parsing; its later rejection and duplicate global Error/rejection deliveries stay silent under the original dead owner. A valid old body released after a same-region Retry cannot clear or retry the newer selection. Whole-Layers fallback cancels a held row and its 3s deadline; late row response is ignored. Armed Details/row faults are discarded when their child owner disappears; parent Retry recreates healthy work. Normal production has no menu.
+- Ownership corrections: Details scopes now parent to Inspector; parent failure cancels hidden Details before any late child error can report. Layers parent failure cancels row/reveal/search attempts. Request cancellation is checked before dev handoff side effects, even if a body resolves after abort. Child disposal also drops its armed retry fault. These implement existing D7/R6.6, not a new fixed decision.
+- Browser regressions pass on both browsers: M8 acceptance **2 passed (1.8m)** and additional lifetimes **2 passed (48.0s)**, M7 **2 passed (49.1s)**, M6 **2 passed (1.1m)** plus final recheck **2 passed (1.3m)**, M5 **2 passed (1.8m)**, M4 **2 passed (5.1m)**, M3 **2 passed (4.3m)**. Firefox's fixture-only scripted navigation was replaced by a real Interact link with the original isolation/reset assertions retained. A Chrome CLI mouse command failed without a product assertion; doctor passed, and restarting the full unchanged probe passed. No test/assertion was weakened or skipped.
+- Development: `/tmp/figr-m9-check/dev.config.ts` passes **Chrome (1 passed, 57.4s)** at `/` without ?dev, serving /@vite/client. New trigger ids are present and unique. Real key/message and malformed Details faults isolate correctly; failed board Retry adds once; Inspector render and same-Error Retry add exactly one each under React development behaviour. Screenshot `/tmp/figr-m9-dev.png`; production screenshots `/tmp/figr-m9-chrome-agent-browser.png` and `/tmp/figr-m9-firefox.png`; logs `/tmp/figr-m9-*.log`.
+- Final explicit typecheck/build, **34 browser-free unit checks**, agent regeneration and `git diff --check` pass. `report()` still has only the one caller in `fail()`. Protected-input comparison verifies all seven HTML files equal baseline after removing the one approved script tag; server/data, agent/shared and package manifests/lockfile are unchanged from M8. All browser probes are disposable files under `/tmp/`; M10's five formal product E2E cases remain unimplemented.
