@@ -17,6 +17,7 @@ export interface LiveData {
   fontWeight: string;
 }
 export interface Geometry extends Target { box: Rect | null; clip: Rect | null; live: LiveData | null }
+export interface TreeNode extends Target { dataKey: string | null; hasChildren: boolean }
 export type Direction = "child" | "parent" | "next" | "previous";
 export interface Hello { type: "hello"; instanceId: string }
 export interface Connect { type: "connect"; instanceId: string; mode: Mode }
@@ -25,7 +26,10 @@ export type HostMessage =
   | { type: "ping"; requestId: number }
   | { type: "clear-hover" }
   | { type: "track"; revision: number; elementIds: string[] }
-  | { type: "navigate"; requestId: number; elementId: string; direction: Direction };
+  | { type: "navigate"; requestId: number; elementId: string; direction: Direction }
+  | { type: "tree-children"; requestId: number; parentElementId: string | null }
+  | { type: "tree-ancestors"; requestId: number; elementId: string }
+  | { type: "scroll-element"; elementId: string };
 export type AgentMessage =
   | { type: "ready"; instanceId: string }
   | { type: "pong"; requestId: number }
@@ -37,6 +41,8 @@ export type AgentMessage =
   | { type: "page-error"; message: string }
   | { type: "geometry"; revision: number; targets: Geometry[] }
   | { type: "navigate-result"; requestId: number; target: Target | null }
+  | { type: "tree-children-result"; requestId: number; parentElementId: string | null; children: TreeNode[] }
+  | { type: "tree-ancestors-result"; requestId: number; path: TreeNode[] }
   | { type: "reconcile"; targets: Target[]; goneElementIds: string[] };
 
 /** Rejects non-object wire values before any field is accessed. */
@@ -76,6 +82,11 @@ function elementId(value: unknown): value is string {
   if (typeof value !== "string") return false;
   const separator = value.lastIndexOf(":");
   return instance(value.slice(0, separator)) && /^[1-9]\d*$/.test(value.slice(separator + 1));
+}
+
+/** Validates one lazily exposed tree node and its optional reporting key. */
+function treeNode(value: unknown): value is TreeNode {
+  return record(value) && target(value) && (value.dataKey === null || typeof value.dataKey === "string") && typeof value.hasChildren === "boolean";
 }
 
 /** Allows only nonnegative finite dimensions; off-viewport element positions may be negative. */
@@ -127,6 +138,9 @@ export function isHostMessage(value: unknown): value is HostMessage {
     case "clear-hover": return true;
     case "track": return request(value.revision) && Array.isArray(value.elementIds) && value.elementIds.every(elementId) && new Set(value.elementIds).size === value.elementIds.length;
     case "navigate": return request(value.requestId) && elementId(value.elementId) && typeof value.direction === "string" && ["child", "parent", "next", "previous"].includes(value.direction);
+    case "tree-children": return request(value.requestId) && (value.parentElementId === null || elementId(value.parentElementId));
+    case "tree-ancestors": return request(value.requestId) && elementId(value.elementId);
+    case "scroll-element": return elementId(value.elementId);
     default: return false;
   }
 }
@@ -139,6 +153,11 @@ export function isAgentMessage(value: unknown): value is AgentMessage {
     case "pong": return request(value.requestId);
     case "geometry": return request(value.revision) && Array.isArray(value.targets) && value.targets.every(geometry) && new Set((value.targets as Geometry[]).map(item => item.elementId)).size === value.targets.length;
     case "navigate-result": return request(value.requestId) && target(value.target);
+    case "tree-children-result": return request(value.requestId) && (value.parentElementId === null || elementId(value.parentElementId))
+      && Array.isArray(value.children) && value.children.every(treeNode)
+      && new Set((value.children as TreeNode[]).map(item => item.elementId)).size === value.children.length;
+    case "tree-ancestors-result": return request(value.requestId) && Array.isArray(value.path) && value.path.every(treeNode)
+      && new Set((value.path as TreeNode[]).map(item => item.elementId)).size === value.path.length;
     case "reconcile": {
       if (!Array.isArray(value.targets) || !value.targets.every(item => target(item) && item !== null) || !Array.isArray(value.goneElementIds) || !value.goneElementIds.every(elementId)) return false;
       const targetIds = (value.targets as Target[]).map(item => item.elementId);

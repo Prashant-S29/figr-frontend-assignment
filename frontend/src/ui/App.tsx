@@ -1,10 +1,11 @@
-// Presents the product toolbar, isolated board and Inspector regions; stores own all shared state and Layers remain later work.
+// Presents the product toolbar plus isolated Layers, board and Inspector regions; stores own all shared state.
 import { useSyncExternalStore } from "react";
 import { guard } from "../core/guard";
 import type { BoardStore } from "../stores/board";
 import { Board } from "./Board";
 import { RegionBoundary } from "./RegionBoundary";
 import { Inspector } from "./Inspector";
+import { Layers } from "./Layers";
 
 function Toolbar({ board }: { board: BoardStore }) {
   const { mode } = useSyncExternalStore(board.subscribe, board.getSnapshot);
@@ -24,6 +25,7 @@ export function App({ board }: { board: BoardStore }) {
   return <main className="app" data-testid="app">
     <Toolbar board={board} />
     <div className="workspace" data-testid="workspace">
+      <Layers store={board.layers} />
       <section className="board-region" data-testid="board-region">
         <RegionBoundary region={board.region} testId="board"><Board board={board} /></RegionBoundary>
       </section>

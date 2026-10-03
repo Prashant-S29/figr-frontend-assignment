@@ -3,8 +3,8 @@
 Update at the start and end of every milestone, and whenever a decision, gate or limitation appears. Keep entries short and factual.
 
 ## Now
-- **Current milestone:** M7 (not started); M0–M6 are done
-- **Next action:** implement the lazy Layers tree, per-row loading failures, preview/tree hover-selection sync and keyboard navigation
+- **Current milestone:** M8 (not started); M0–M7 are done
+- **Next action:** implement per-preview Layers persistence, mutation-driven tree updates and whole-tree search
 
 ## Milestones
 | ID | Name | Status | Verified (what, when) |
@@ -16,7 +16,7 @@ Update at the start and end of every milestone, and whenever a decision, gate or
 | M4 | Hover and selection | done | 2026-10-03: full Chrome/Firefox M4 gate (2 passed, 4.6m), M3 regression (2 passed, 3.2m), typecheck/build + 20 unit checks. Vite dev selection/Tab/I/V and preview-only draw failure/Retry verified in Chrome. Commit `e838dab`; agent regeneration leaves git clean. |
 | M5 | Identity and re-render survival | done | 2026-10-03: 27 unit checks and final typecheck/build passed; Chrome/Firefox M5 gate passed (`2 passed`, 1.8m): keyed and un-keyed Page 4 selections survived five rebuilds with stable ids/geometry, cap removal became missing without jumping, stationary hover re-resolved, navigation cleared only that preview while hash navigation retained identity. M4 gate and M3 regression also passed both browsers. |
 | M6 | Inspector | done | 2026-10-03: final typecheck/build and 27 unit checks passed; Chrome/Firefox M6 gate passed (`2 passed`, 1.1m): Live updates/safe text, multi Mixed values, latest-only Details, no-key/404, malformed/fail isolation and Retry, render boundary, missing state. M5, M4 and M3 browser regressions passed both browsers. |
-| M7 | Layers: tree and sync | not started | |
+| M7 | Layers: tree and sync | done | 2026-10-03: final typecheck/build and 30 unit checks passed; Chrome/Firefox M7 gate passed (`2 passed`, 34.2s): lazy rows, one in-flight request, 3s row timeout/Retry, bidirectional sync, ~30-level Page 5 reveal, page-only scrolling, arrow navigation and isolated row/whole-Layers failures. M6–M3 browser regressions passed both browsers. | |
 | M8 | Layers: persistence, live updates, search | not started | |
 | M9 | Failure matrix | not started | |
 | M10 | Verification and hardening | not started | |
@@ -48,11 +48,12 @@ Append only. Anything that changes a PRD `D*` item, the protocol, or adds a depe
 | 12 | 2026-10-03 | Owner approved Enter/Shift+Enter/Tab/Shift+Tab change viewer selection only in Select; Interact keeps native keyboard behavior. Escape clears viewer selection in either mode without cancelling native Interact handling | R3 keyboard behavior must coexist with R1.5's normal Interact page and retained hidden selection | Changing hidden selection while users tab/type in Interact; cancelling native Interact keys | M4 |
 | 13 | 2026-10-03 | Owner approved agent `reconcile { targets, goneElementIds }` batching uniquely rebound exposed identities and identities proven gone after a mutation | D5/R3.7 require the host to refresh surviving target metadata, prune only proven-gone selection and distinguish disappearance from explicit clearing; batching preserves mutation ordering | Inferring disappearance from null geometry; one message per identity; host-side DOM matching | M5 |
 | 14 | 2026-10-03 | Owner approved extending each tracked `Geometry` with nullable Live metadata (`dataKey`, tag/id/classes, page position, 120-character normalized text, and computed text/background/font values) under the existing tracking revision | R5 requires page-owned values to update live; extending tracked-only polling avoids another command/poller and preserves current stale-revision suppression | A separate inspect command/poller; host DOM access; uncorrelated live events | M6 |
+| 15 | 2026-10-03 | Owner approved private `tree-children`, `tree-ancestors` and `scroll-element` commands plus correlated `tree-children-result` and `tree-ancestors-result` replies carrying `{ elementId, name, dataKey, hasChildren }` nodes | R4.1–R4.8 require cross-origin lazy tree reads, deep ancestor reveal, row failure correlation and page-only scrolling; the host cannot inspect the iframe DOM | Sending the whole tree eagerly; host DOM access; overloading selection traversal messages | M7 |
 
 ## Known limitations
 Feeds the README "where this breaks". Add as discovered: what breaks, when, and why.
 
-_No unresolved M1–M6 gate defects found in the completed checks. Full product failure-matrix verification remains M9; formal performance verification remains M10._
+_No unresolved M1–M7 gate defects found in the completed checks. Full product failure-matrix verification remains M9; formal performance verification remains M10._
 
 - Native Interact scrolling follows the browser's gesture rules: Firefox can latch a wheel transaction to the nested container for 1500ms, so outward chaining at its boundary requires a new gesture. Select-mode emulation consumes the remainder immediately. This is native browser behavior, not an overlay fallback.
 
@@ -86,6 +87,10 @@ One line per working session: what changed, what is next.
 - 2026-10-03: M5 completed. Added mutation-driven top-down identity reconciliation, conservative ambiguity handling, batched survivor/gone traffic, host disappearance state and stationary-pointer re-hit-testing. Final Chrome/Firefox gate, M4/M3 regressions, typecheck/build and 27 unit checks pass. Next: M6 only.
 - 2026-10-03: M6 started. Building agent-sourced Live values, single/mixed inspector state, validated latest-selection Details and details/inspector failure isolation only; layers remain deferred.
 - 2026-10-03: M6 completed. Added tracked Live metadata, store-owned Inspector projection, validated latest-only Details, nested details/inspector failure regions and dev triggers. Final Chrome/Firefox gate, M5/M4/M3 regressions, typecheck/build and 27 unit checks pass. Next: M7 only.
+- 2026-10-03: M7 started. Building only the lazy Layers tree, per-row timeout/failure isolation, preview/tree hover-selection sync, deep reveal, page-only scroll-to-element and arrow-key navigation.
+- 2026-10-03: M7 paused before protocol work. Owner approval requested for the minimum lazy-tree/ancestor/scroll private messages required by the cross-origin boundary.
+- 2026-10-03: Owner approved the M7 private tree protocol; implementation resumed.
+- 2026-10-03: M7 completed. Added the lazy active-preview Layers tree, isolated row timeout/Retry, bidirectional hover/selection sync, batched deep reveal, page-only scroll and panel arrow navigation. Final Chrome/Firefox gate, M6–M3 regressions, typecheck/build and 30 unit checks pass. Next: M8 only.
 
 ## M0 verification evidence
 
@@ -191,3 +196,15 @@ One line per working session: what changed, what is next.
 - Both browsers: the actual Inspector render path failed in its own boundary, reported once, left all 24 previews ready and recovered on Retry. Removing a selected un-keyed element produced `This element no longer exists`; the next selection cleared that state.
 - Regressions: final M5 identity/navigation gate passed Chrome/Firefox (**2 passed, 1.9m**), the full M4 hover/selection gate passed (**2 passed, 5.2m**) and the M3 product/failure regression passed (**2 passed, 4.4m**). Temporary-probe corrections only scrolled an offscreen Chrome Retry into view after the new panel and panned a hash link out from behind the fixed panel; no product assertion was removed or weakened.
 - Final `npm run build`, explicit typecheck, **27 unit checks**, deterministic agent regeneration and protected-input checks pass. `backend/server.js`/`backend/data/` are unchanged and all seven page HTML files still differ from baseline only by the approved first-head agent tag. Layers and the formal complete failure matrix remain M7–M9.
+
+## M7 verification evidence
+
+- Agent/protocol: owner approved correlated `tree-children`, `tree-ancestors` and `scroll-element` commands plus children/ancestor replies carrying bounded row metadata. The agent exposes body-relative rows lazily, resolves paths from current identities and scrolls only the inspected document; shared and preview boundaries validate every id, unique list and current instance.
+- Ownership/failures: `layers.ts` owns the active preview tree, complete row-state replacement, exact one-request-per-parent reuse, three-second timeouts, per-row `layers-row` regions, whole-panel `layers` failures, expansion/focus and selection reveal. Replaced documents cancel old replies; Retry starts a fresh regional generation. The dev menu registers real row-load and Layers-render paths.
+- Sync/UI: row hover drives the global outline; preview hover highlights the row or nearest visible collapsed ancestor without expansion. Row click/Shift+click use the shared selection owner and page-only scroll command. Preview selection discovers paths in parallel, lazily loads each level, applies ancestor expansion as one batch, highlights all selected rows and scrolls the panel to the most recent. Fixed 32px rows expose stable controls and ↑/↓/→/← navigation.
+- Unit command: `npm test` reported **30 passed** without a browser. Three Layers derivation checks prove visible document order, nearest collapsed-ancestor projection and cycle-safe unknown ancestry; the 27 existing failure/reconciliation checks remain green.
+- Production browser gate: final `npx playwright test --config /tmp/figr-m7-check/playwright.config.ts` reported **2 passed (34.2s)** on Chrome 153 through agent-browser/CDP and Playwright Firefox 155. The disposable probe is outside the five M10 product E2E cases.
+- Both browsers: lazy landing rows loaded only on expansion; collapsing/re-expanding a held request sent exactly one command, kept a single Loading row and reached an isolated `Couldn't load` after the real three-second deadline. A sibling remained selectable, the report count increased once, and row Retry loaded one non-duplicated child level. The registered row-failure trigger and whole-Layers render failure each reported once and recovered without affecting 24 ready previews.
+- Both browsers: row→preview and preview→row hover worked, including nearest collapsed ancestor with no expansion; row selection, Shift multi-selection and all four arrow behaviors worked. Selecting Page 5 `Setting 30.1` expanded about 30 levels, highlighted and panel-scrolled the row. Clicking an out-of-view `h1` row moved only that iframe to `scrollY=0`; board coordinates did not change.
+- Regressions: the M6 Inspector gate passed both browsers (**2 passed, 1.1m**); M5 identity/navigation passed Firefox (**41.5s**) and Chrome (**1.1m**); the complete M4 gate passed both (**2 passed, 5.0m**); M3 product/failure checks passed both (**2 passed, 4.8m**). Older disposable probes were widened/panned relative to the new 300px panel; no product assertion was removed.
+- Final typecheck/build, **30 unit checks**, deterministic agent regeneration and protected-input checks pass. `backend/server.js`/`backend/data/` remain unchanged; every page HTML difference from baseline remains only the approved first-head agent tag. M8 persistence/live updates/search and M9's complete failure matrix remain deferred.

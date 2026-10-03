@@ -1,4 +1,4 @@
-/* Styles the fixed-size preview grid and host toolbar; viewport motion is store-owned and outlines/panels are later work. */
+/* Styles the fixed-size preview grid and host toolbar; viewport motion, outlines and side-panel state are owned elsewhere. */
 * { box-sizing: border-box; }
 html, body, #root { width: 100%; height: 100%; margin: 0; }
 body { font: 14px/1.4 system-ui, sans-serif; color: #182230; overflow: hidden; }

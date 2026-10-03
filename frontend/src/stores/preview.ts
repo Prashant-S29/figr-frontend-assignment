@@ -12,6 +12,7 @@ export interface PreviewIntents {
   mode(): Mode;
   receive(screenId: string, message: AgentMessage): void;
   replaced(screenId: string): void;
+  ready(screenId: string): void;
 }
 
 /** Creates an isolated preview owner whose old private-port callbacks die before a page or retry replaces them. */
@@ -78,6 +79,7 @@ export function createPreview(screen: Screen, parent: Scope, intents: PreviewInt
       if (snapshot.phase === "ready") return;
       cancelDeadline?.();
       update({ ...snapshot, phase: "ready" });
+      intents.ready(screen.id);
       heartbeat();
     } else if (message.type === "pong") {
       if (message.requestId !== pendingPing) return;
@@ -94,6 +96,8 @@ export function createPreview(screen: Screen, parent: Scope, intents: PreviewInt
       if ((message.type === "hover" || message.type === "select" || message.type === "navigate-result") && message.target && !message.target.elementId.startsWith(`${snapshot.instanceId}:`)) throw new Error("Target instance mismatch");
       if (message.type === "geometry" && message.targets.some(item => !item.elementId.startsWith(`${snapshot.instanceId}:`))) throw new Error("Geometry instance mismatch");
       if (message.type === "reconcile" && [...message.targets.map(item => item.elementId), ...message.goneElementIds].some(id => !id.startsWith(`${snapshot.instanceId}:`))) throw new Error("Reconciliation instance mismatch");
+      if (message.type === "tree-children-result" && [message.parentElementId, ...message.children.map(item => item.elementId)].some(id => id !== null && !id.startsWith(`${snapshot.instanceId}:`))) throw new Error("Tree children instance mismatch");
+      if (message.type === "tree-ancestors-result" && message.path.some(item => !item.elementId.startsWith(`${snapshot.instanceId}:`))) throw new Error("Tree ancestors instance mismatch");
       intents.receive(screen.id, message);
     }
   }

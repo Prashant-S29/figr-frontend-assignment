@@ -12,6 +12,7 @@ import { routeCaughtRender } from "./ui/RegionBoundary";
 import "./ui/failures.css";
 import "./ui/board.css";
 import "./ui/outlines.css";
+import "./ui/layers.css";
 import "./ui/inspector.css";
 
 const lifetime = createScope();

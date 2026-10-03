@@ -1,4 +1,4 @@
-// Owns screens, preview lifetimes and mode; selection/inspector stores own inspection state, viewport owns motion and Layers remain later work.
+// Owns screens, preview lifetimes and mode; selection, Layers and Inspector stores own inspection state while viewport owns motion.
 import type { AgentMessage, HostMessage, Mode } from "../../../shared/protocol";
 import type { ElementDetailsQuery } from "../api/elements";
 import { fetchScreens } from "../api/screens";
@@ -11,6 +11,7 @@ import { createPreview, type PreviewStore } from "./preview";
 import { createViewport } from "./viewport";
 import { createSelection } from "./selection";
 import { createInspector } from "./inspector";
+import { createLayers } from "./layers";
 
 export interface BoardSnapshot { readonly loading: boolean; readonly previews: readonly PreviewStore[]; readonly mode: Mode; readonly renderError: Error | null }
 
@@ -23,6 +24,7 @@ export function createBoard(region: FailureRegion, dev: boolean) {
   let disposed = false;
   const listeners = new Set<() => void>();
   const selection = createSelection(boardTarget, sendInspection);
+  const layers = createLayers(selection, boardTarget, sendInspection, dev);
   const inspector = createInspector(selection, boardTarget, dev, elementQuery());
   const viewport = createViewport(boardTarget, clearHover);
   const removeTriggers: (() => void)[] = [];
@@ -62,7 +64,12 @@ export function createBoard(region: FailureRegion, dev: boolean) {
     for (const preview of snapshot.previews) if (preview.getSnapshot().phase === "ready") send(preview, { type: "clear-hover" });
   }
   /** Drops only references owned by the replaced/failed document before new-instance traffic arrives. */
-  function replaced(screenId: string): void { selection.forget(screenId); }
+  function replaced(screenId: string): void {
+    selection.forget(screenId);
+    layers.forget(screenId);
+  }
+  /** Starts deferred active-preview tree loading only after the authenticated agent is ready. */
+  function ready(screenId: string): void { layers.ready(screenId); }
   /** Changes mode once in the board store, then tells each isolated agent to change its own overlay. */
   function setMode(next: Mode): void {
     if (snapshot.mode === next) return;
@@ -96,6 +103,8 @@ export function createBoard(region: FailureRegion, dev: boolean) {
       selection.navigationResult(screenId, message.requestId, message.target);
     } else if (message.type === "reconcile") {
       selection.reconcile(screenId, message.targets, message.goneElementIds);
+    } else if (message.type === "tree-children-result" || message.type === "tree-ancestors-result") {
+      layers.receive(screenId, message);
     } else if (message.type === "key") {
       shortcut(message.key, message.editable, message.ctrlKey || message.metaKey || message.altKey, message.shiftKey);
     } else if (message.type === "zoom") {
@@ -135,7 +144,7 @@ export function createBoard(region: FailureRegion, dev: boolean) {
     }
     /** Binds each screen to this exact board generation and its host-owned intent actions. */
     function makePreview(screen: Awaited<ReturnType<typeof fetchScreens>>[number]): PreviewStore {
-      return createPreview(screen, region.target.ctx.scope, { mode, receive, replaced });
+      return createPreview(screen, region.target.ctx.scope, { mode, receive, replaced, ready });
     }
     runAttempt(region.target, request, apply);
   }
@@ -207,10 +216,11 @@ export function createBoard(region: FailureRegion, dev: boolean) {
     for (const preview of snapshot.previews) preview.dispose();
     viewport.dispose();
     inspector.dispose();
+    layers.dispose();
     selection.dispose();
     listeners.clear();
   }
   guard(region.target, load)();
-  return { region, viewport, selection, inspector, getSnapshot, subscribe, setMode, clearHover, setDragging, dispose };
+  return { region, viewport, selection, layers, inspector, getSnapshot, subscribe, setMode, clearHover, setDragging, dispose };
 }
 export type BoardStore = ReturnType<typeof createBoard>;

@@ -21,6 +21,7 @@ export const native = {
   focusElement: HTMLElement.prototype.focus,
   setStyle: CSSStyleDeclaration.prototype.setProperty,
   scrollElement: Element.prototype.scrollBy as (this: Element, options: ScrollToOptions) => void,
+  scrollIntoView: Element.prototype.scrollIntoView as (this: Element, options?: ScrollIntoViewOptions) => void,
   preventDefault: Event.prototype.preventDefault,
   stopImmediate: Event.prototype.stopImmediatePropagation,
   eventPath: Event.prototype.composedPath,

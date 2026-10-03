@@ -1,5 +1,5 @@
 // Owns element ids, mutation-driven unique reconciliation, names and DOM traversal; selection and disappearance UI stay in the host.
-import type { Direction, Target } from "../../shared/protocol";
+import type { Direction, Target, TreeNode } from "../../shared/protocol";
 import { native } from "./native";
 import { matchChildren, type MatchIdentity } from "./reconcile";
 
@@ -101,6 +101,16 @@ export function createIdentity(instanceId: string) {
     return { elementId: binding.elementId, name: name(element) };
   }
 
+  /** Describes one tree row with the key used for row-failure attribution and a cheap child-presence hint. */
+  function describeTree(element: Element): TreeNode {
+    const target = describe(element)!;
+    return {
+      ...target,
+      dataKey: native.getAttribute.call(element, "data-key"),
+      hasChildren: element.firstElementChild !== null,
+    };
+  }
+
   /** Resolves the current uniquely proven binding, including a node adopted during reconciliation. */
   function lookup(elementId: string): Element | null {
     const binding = records.get(elementId);
@@ -116,6 +126,31 @@ export function createIdentity(instanceId: string) {
       : direction === "next" ? element.nextElementSibling ?? element.parentElement?.firstElementChild
       : element.previousElementSibling ?? element.parentElement?.lastElementChild;
     return describe(next ?? null);
+  }
+
+  /** Returns one lazy child level, using body children as the panel's invisible root. */
+  function treeChildren(parentElementId: string | null): TreeNode[] {
+    const parent = parentElementId === null ? document.body : lookup(parentElementId);
+    return parent ? Array.from(parent.children, describeTree) : [];
+  }
+
+  /** Returns the body-relative ancestor path needed to reveal a selected row without exposing DOM nodes. */
+  function treeAncestors(elementId: string): TreeNode[] {
+    const element = lookup(elementId);
+    if (!element) return [];
+    const path: Element[] = [];
+    let current: Element | null = element;
+    while (current && current !== document.body && current !== document.documentElement) {
+      path.push(current);
+      current = current.parentElement;
+    }
+    return path.reverse().map(describeTree);
+  }
+
+  /** Scrolls only the inspected document's nested containers and viewport to the current identity. */
+  function scrollElement(elementId: string): void {
+    const element = lookup(elementId);
+    if (element) native.scrollIntoView.call(element, { block: "nearest", inline: "nearest" });
   }
 
   /** Rebinds one detached sibling set only where the ordered evidence is unique among all unclaimed candidates. */
@@ -214,6 +249,6 @@ export function createIdentity(instanceId: string) {
     native.observeMutations.call(observer, document, { childList: true, subtree: true, attributes: true, characterData: true });
   }
 
-  return { describe, lookup, navigate, observe };
+  return { describe, lookup, navigate, treeChildren, treeAncestors, scrollElement, observe };
 }
 export type Identity = ReturnType<typeof createIdentity>;

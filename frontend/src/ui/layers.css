@@ -1,0 +1,18 @@
+/* Styles the fixed-width, fixed-row-height Layers tree and row-local failure surfaces; tree state and scrolling decisions remain store-owned. */
+.layers { flex: 0 0 300px; min-width: 0; overflow: auto; border-right: 1px solid #cdd5df; background: #fff; }
+.layers > h2 { position: sticky; top: 0; z-index: 1; margin: 0; padding: 16px; background: #fff; border-bottom: 1px solid #eef1f4; font-size: 16px; }
+.layers > p { margin: 16px; color: #667085; }
+.layers-tree { min-height: 100%; outline: none; }
+.layers-row { display: flex; align-items: center; height: 32px; min-width: max-content; padding-right: 8px; white-space: nowrap; }
+.layers-row.is-hovered { background: #eef4ff; }
+.layers-row.is-selected { background: #dce8ff; }
+.layers-row.is-selected.is-hovered { background: #c9dcff; }
+.layers-chevron, .layers-chevron-spacer { flex: 0 0 24px; width: 24px; height: 28px; }
+.layers-chevron { padding: 0; border: 0; background: transparent; color: #475467; }
+.layers-chevron-spacer { display: block; }
+.layers-name { min-width: 0; height: 28px; padding: 0 6px; overflow: hidden; border: 0; background: transparent; color: inherit; text-align: left; text-overflow: ellipsis; }
+.layers-name:focus-visible, .layers-chevron:focus-visible, .layers-tree:focus-visible { outline: 2px solid #2459c4; outline-offset: -2px; }
+.layers-row-status { display: flex; align-items: center; height: 32px; color: #667085; }
+.layers-tree .region-error { display: flex; align-items: center; min-height: 32px; height: auto; padding: 4px 8px; gap: 8px; justify-content: flex-start; }
+.layers-tree .region-error p { margin: 0; }
+.layers-tree .region-error button { padding: 2px 8px; }

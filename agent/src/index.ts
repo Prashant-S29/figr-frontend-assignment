@@ -64,9 +64,18 @@ function start(): void {
     else if (message.type === "track") {
       if (message.elementIds.some(id => !id.startsWith(`${instanceId}:`))) throw new Error("Tracked instance mismatch");
       geometry.track(message.revision, message.elementIds);
-    } else {
+    } else if (message.type === "navigate") {
       if (!message.elementId.startsWith(`${instanceId}:`)) throw new Error("Navigation instance mismatch");
       send({ type: "navigate-result", requestId: message.requestId, target: identity.navigate(message.elementId, message.direction) });
+    } else if (message.type === "tree-children") {
+      if (message.parentElementId !== null && !message.parentElementId.startsWith(`${instanceId}:`)) throw new Error("Tree parent instance mismatch");
+      send({ type: "tree-children-result", requestId: message.requestId, parentElementId: message.parentElementId, children: identity.treeChildren(message.parentElementId) });
+    } else if (message.type === "tree-ancestors") {
+      if (!message.elementId.startsWith(`${instanceId}:`)) throw new Error("Tree target instance mismatch");
+      send({ type: "tree-ancestors-result", requestId: message.requestId, path: identity.treeAncestors(message.elementId) });
+    } else {
+      if (!message.elementId.startsWith(`${instanceId}:`)) throw new Error("Scroll target instance mismatch");
+      identity.scrollElement(message.elementId);
     }
   }
 

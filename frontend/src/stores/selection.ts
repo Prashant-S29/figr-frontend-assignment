@@ -23,6 +23,7 @@ export function createSelection(target: () => FailureTarget, send: (screenId: st
   const arrivals = new Map<string, { revision: number; targets: readonly Geometry[] }>();
   let revision = 0;
   let requestId = 0;
+  let hoverSource: "preview" | "layers" | null = null;
   let pending: { screenId: string; requestId: number } | null = null;
   let queue: Direction[] = [];
   let cancelFrame: (() => void) | undefined;
@@ -56,18 +57,22 @@ export function createSelection(target: () => FailureTarget, send: (screenId: st
     }
     snapshot = { ...snapshot, geometry };
   }
-  /** Changes only the global hovered identity; a null from an old preview cannot clear a newer preview's hover. */
-  function hover(screenId: string, value: Target | null): void {
-    if (!value && snapshot.hover?.screenId !== screenId) return;
-    if (value && snapshot.hover?.screenId === screenId && snapshot.hover.target.elementId === value.elementId) return;
+  /** Changes the global hovered identity while preventing a trailing iframe leave from clearing a row-owned hover. */
+  function hover(screenId: string, value: Target | null, source: "preview" | "layers" = "preview"): void {
+    if (!value && (snapshot.hover?.screenId !== screenId || hoverSource !== source)) return;
+    if (value && snapshot.hover?.screenId === screenId && snapshot.hover.target.elementId === value.elementId && hoverSource === source) return;
+    hoverSource = value ? source : null;
     snapshot = { ...snapshot, hover: value ? { screenId, target: value } : null };
     synchronize();
     notify();
   }
-  /** Removes transient hover without dropping selected geometry or keyboard ordering. */
+  /** Removes transient hover from any source without dropping selected geometry or keyboard ordering. */
   function clearHover(): void {
     if (!snapshot.hover) return;
-    hover(snapshot.hover.screenId, null);
+    hoverSource = null;
+    snapshot = { ...snapshot, hover: null };
+    synchronize();
+    notify();
   }
   /** Applies click/shift-click replacement or toggling, retaining selection order for the most-recent keyboard target. */
   function select(screenId: string, value: Target | null, shift: boolean): void {
@@ -120,6 +125,7 @@ export function createSelection(target: () => FailureTarget, send: (screenId: st
     const hover = snapshot.hover?.screenId === screenId
       ? gone.has(snapshot.hover.target.elementId) ? null : { screenId, target: survivorById.get(snapshot.hover.target.elementId) ?? snapshot.hover.target }
       : snapshot.hover;
+    if (!hover) hoverSource = null;
     let targets = snapshot.targets;
     let selectedScreenId = snapshot.screenId;
     let missing = snapshot.missing;
@@ -164,6 +170,7 @@ export function createSelection(target: () => FailureTarget, send: (screenId: st
     arrivals.delete(screenId);
     const geometry = new Map(snapshot.geometry);
     geometry.delete(screenId);
+    if (snapshot.hover?.screenId === screenId) hoverSource = null;
     snapshot = { ...snapshot, geometry,
       hover: snapshot.hover?.screenId === screenId ? null : snapshot.hover,
       screenId: snapshot.screenId === screenId ? null : snapshot.screenId,
@@ -185,6 +192,7 @@ export function createSelection(target: () => FailureTarget, send: (screenId: st
     cancelNavigation();
     tracking.clear();
     arrivals.clear();
+    hoverSource = null;
     snapshot = { activeScreenId: null, hover: null, screenId: null, targets: [], missing: false, geometry: new Map(), drawFault: null };
     notify();
   }
