@@ -3,15 +3,15 @@
 Update at the start and end of every milestone, and whenever a decision, gate or limitation appears. Keep entries short and factual.
 
 ## Now
-- **Current milestone:** M2 (in progress); M0 and M1 are done
-- **Next action:** commit the verified failure core and evidence, confirm deterministic builds leave git clean, then mark M2 done
+- **Current milestone:** M3 (not started); M0–M2 are done
+- **Next action:** replace the disposable harness with the product board/previews, validated screens fetching, rAF-batched pan/zoom, scoped connections and page-error badges
 
 ## Milestones
 | ID | Name | Status | Verified (what, when) |
 |---|---|---|---|
 | M0 | Scaffold and baseline | done | 2026-10-03: fresh clone + `npm ci` + `npm start`; Chrome rendered the production shell, API returned 24 screens, all 7 pages and agent asset returned 200. Typecheck/build passed; empty unit run exited 0. Protected backend diff empty; only generated `agent.js` added under pages. |
 | M1 | Agent core and D4 gate | done | 2026-10-03: full gate + keyboard/native-capture/transport probes passed Chrome and Firefox (`2 passed`, 2.3m); typecheck/build and empty unit run passed. Bundle regeneration left git clean after commit `64213d4`. |
-| M2 | Failure core | in progress | 20 browser-free tests pass; production browser probes pass Chrome/Firefox (2 passed, 56.1s); M1 regression gate passes both (2 passed, 2.9m). Vite dev visibility/render Retry verified in Chrome. Awaiting final commit/clean build. |
+| M2 | Failure core | done | 2026-10-03: 20 unit tests; typecheck/build pass; Chrome/Firefox core probes (2 passed, 56.1s) and M1 regression (2 passed, 2.9m). Vite dev visibility/Retry verified in Chrome. Commit `513632d`; agent regeneration leaves git clean. |
 | M3 | Board and previews | not started | |
 | M4 | Hover and selection | not started | |
 | M5 | Identity and re-render survival | not started | |
@@ -64,6 +64,7 @@ One line per working session: what changed, what is next.
 - 2026-10-03: M1 completed and committed as `64213d4`; deterministic agent regeneration left git clean. D4 gate is passed, both approved fixes are logged, and the harness remains disposable. Next: M2 only.
 - 2026-10-03: M2 started. Building shared failure infrastructure and browser-free tests, with temporary M1 harness integration for browser verification. No protocol/dependency change or M3 feature work planned.
 - 2026-10-03: M2 core and 17 tests passed; Chrome exercised regional Retry, render/timer/rAF/global failures, duplicate global deliveries, cancellation and safe text rendering. Paused for D7/R6.4 clarification about explicitly reusing an Error object on Retry before finalizing the core. Owner approved generation-scoped dedupe; the final 20 unit tests and Chrome/Firefox browser checks passed.
+- 2026-10-03: M2 completed in `513632d`; final typecheck/build, 20 unit checks and deterministic agent regeneration passed. M1 browser gate still passes. No backend/protocol/dependency changes; M3 has not started.
 
 ## M0 verification evidence
 
@@ -106,4 +107,5 @@ One line per working session: what changed, what is next.
 - M1 regression: `npx playwright test --config /tmp/figr-m1-gate/playwright.config.ts` reported **2 passed (2.9m)** after scoped harness integration: disabled controls, Select/Interact, keyboard focus, nested scrolling/sticky targets, zoom, native captures, port replacement/invalid-message isolation, lost-pong deadline and Reload recovery still pass in Chrome and Firefox.
 - Local artifacts: `/tmp/figr-m2-chrome-agent-browser.json`, `/tmp/figr-m2-firefox.json`, matching screenshots, and `/tmp/figr-m2-render-error.png`. Browser-tooling correction: the Chrome CDP observer selected an internal new-tab target on its first attempt; selecting the actual host URL fixed the probe without changing any product assertion.
 - `npm run typecheck`, `npm run build`, and agent regeneration succeeded. `git diff f392e11 -- backend agent shared package-lock.json` was empty: no backend/HTML/agent/protocol/dependency change. The only fixed-decision clarification is owner-approved D7 retry-generation dedupe.
+- Committed build: `513632d`; `npm run build:agent` after commit produced no git changes. Browser/dev-server verification processes were stopped after the checks.
 - Scope: M2 failure infrastructure is complete; no screens API/grid/pan/zoom product work, inspector/layers, page-error badges or full failure matrix was built. Those remain M3 onward.
