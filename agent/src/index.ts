@@ -1,4 +1,4 @@
-// Owns agent bootstrap and private-port dispatch; inspection input is delegated to the overlay and product state stays in the host.
+// Owns bootstrap, private-port dispatch and page-error forwarding; overlay input is delegated and all product state stays in the host.
 import { isConnect, isHostMessage, type AgentMessage } from "../../shared/protocol";
 import { native } from "./native";
 import { createOverlay } from "./overlay";
@@ -8,13 +8,13 @@ function start(): void {
   if (window.parent === window) return;
   const instanceId = native.randomUUID();
   let port: MessagePort | null = null;
-  const pendingErrors: string[] = [];
+  const pendingErrors: AgentMessage[] = [];
 
   /** Serializes an agent failure without throwing into the page, even if its connection is already gone. */
   function failure(error: unknown): void {
     const message = error instanceof Error ? error.message : String(error);
     if (!port) {
-      pendingErrors.push(message);
+      pendingErrors.push({ type: "agent-error", message });
       return;
     }
     try {
@@ -45,6 +45,7 @@ function start(): void {
     const message = (event as MessageEvent<unknown>).data;
     if (!isHostMessage(message)) throw new Error("Invalid host message");
     if (message.type === "mode") overlay?.setMode(message.mode);
+    else if (message.type === "clear-hover") overlay?.clearHover();
     else send({ type: "pong", requestId: message.requestId });
   }
 
@@ -69,7 +70,7 @@ function start(): void {
     native.portStart.call(port);
     overlay?.setMode(input.data.mode);
     send({ type: "ready", instanceId });
-    for (const message of pendingErrors.splice(0)) send({ type: "agent-error", message });
+    for (const message of pendingErrors.splice(0)) send(message);
   }
 
   /** Makes a deserialization failure visible to the host instead of crashing a page callback. */
@@ -77,6 +78,17 @@ function start(): void {
     throw new Error("Could not deserialize host message");
   }
 
+  /** Forwards each native page exception/rejection without cancelling its ordinary browser delivery. */
+  function pageError(event: Event): void {
+    const reason: unknown = event.type === "error" ? (event as ErrorEvent).message : (event as PromiseRejectionEvent).reason;
+    const message = reason instanceof Error ? reason.message : String(reason ?? "Unknown page error");
+    const intent: AgentMessage = { type: "page-error", message };
+    if (port) send(intent);
+    else pendingErrors.push(intent);
+  }
+
+  native.addListener.call(window, "error", protect(pageError));
+  native.addListener.call(window, "unhandledrejection", protect(pageError));
   native.addListener.call(window, "message", protect(connect));
   // Referrer becomes the previous preview on navigation; only the parent can authenticate discovery.
   native.postParent({ type: "hello", instanceId }, "*");

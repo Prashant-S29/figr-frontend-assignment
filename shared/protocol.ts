@@ -1,9 +1,9 @@
-// Defines and validates the M1 transport boundary; DOM references, geometry and tree state never enter this contract.
+// Defines and validates private inspection/liveness and page-error traffic; DOM references, geometry and tree state never cross here.
 export type Mode = "select" | "interact";
 export interface Target { elementId: string; name: string }
 export interface Hello { type: "hello"; instanceId: string }
 export interface Connect { type: "connect"; instanceId: string; mode: Mode }
-export type HostMessage = { type: "mode"; mode: Mode } | { type: "ping"; requestId: number };
+export type HostMessage = { type: "mode"; mode: Mode } | { type: "ping"; requestId: number } | { type: "clear-hover" };
 export type AgentMessage =
   | { type: "ready"; instanceId: string }
   | { type: "pong"; requestId: number }
@@ -11,7 +11,8 @@ export type AgentMessage =
   | { type: "select"; target: Target | null; shiftKey: boolean }
   | { type: "key"; key: string; code: string; shiftKey: boolean; ctrlKey: boolean; metaKey: boolean; altKey: boolean; editable: boolean; repeat: boolean }
   | { type: "zoom"; x: number; y: number; deltaX: number; deltaY: number; deltaMode: number }
-  | { type: "agent-error"; message: string };
+  | { type: "agent-error"; message: string }
+  | { type: "page-error"; message: string };
 
 /** Rejects non-object wire values before any field is accessed. */
 function record(value: unknown): value is Record<string, unknown> {
@@ -56,10 +57,10 @@ export function isConnect(value: unknown): value is Connect {
   return record(value) && value.type === "connect" && instance(value.instanceId) && mode(value.mode);
 }
 
-/** Accepts only the mode and liveness commands supported by the M1 agent. */
+/** Accepts only overlay mode, hover reset and correlated liveness commands. */
 export function isHostMessage(value: unknown): value is HostMessage {
   if (!record(value)) return false;
-  return (value.type === "mode" && mode(value.mode)) || (value.type === "ping" && request(value.requestId));
+  return (value.type === "mode" && mode(value.mode)) || (value.type === "ping" && request(value.requestId)) || value.type === "clear-hover";
 }
 
 /** Validates every private-port agent intent before the host can use it. */
@@ -70,7 +71,8 @@ export function isAgentMessage(value: unknown): value is AgentMessage {
     case "pong": return request(value.requestId);
     case "hover": return target(value.target);
     case "select": return target(value.target) && typeof value.shiftKey === "boolean";
-    case "agent-error": return typeof value.message === "string";
+    case "agent-error":
+    case "page-error": return typeof value.message === "string";
     case "zoom": return finite(value.x) && finite(value.y) && finite(value.deltaX) && finite(value.deltaY) && (value.deltaMode === 0 || value.deltaMode === 1 || value.deltaMode === 2);
     case "key": return typeof value.key === "string" && typeof value.code === "string" && typeof value.shiftKey === "boolean" && typeof value.ctrlKey === "boolean" && typeof value.metaKey === "boolean" && typeof value.altKey === "boolean" && typeof value.editable === "boolean" && typeof value.repeat === "boolean";
     default: return false;

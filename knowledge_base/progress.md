@@ -3,8 +3,8 @@
 Update at the start and end of every milestone, and whenever a decision, gate or limitation appears. Keep entries short and factual.
 
 ## Now
-- **Current milestone:** M3 (not started); M0–M2 are done
-- **Next action:** replace the disposable harness with the product board/previews, validated screens fetching, rAF-batched pan/zoom, scoped connections and page-error badges
+- **Current milestone:** M4 (not started); M0–M3 are done
+- **Next action:** implement hover/selection ownership and agent geometry polling, then screen-space outlines and R3.1–3.6 behaviour
 
 ## Milestones
 | ID | Name | Status | Verified (what, when) |
@@ -12,7 +12,7 @@ Update at the start and end of every milestone, and whenever a decision, gate or
 | M0 | Scaffold and baseline | done | 2026-10-03: fresh clone + `npm ci` + `npm start`; Chrome rendered the production shell, API returned 24 screens, all 7 pages and agent asset returned 200. Typecheck/build passed; empty unit run exited 0. Protected backend diff empty; only generated `agent.js` added under pages. |
 | M1 | Agent core and D4 gate | done | 2026-10-03: full gate + keyboard/native-capture/transport probes passed Chrome and Firefox (`2 passed`, 2.3m); typecheck/build and empty unit run passed. Bundle regeneration left git clean after commit `64213d4`. |
 | M2 | Failure core | done | 2026-10-03: 20 unit tests; typecheck/build pass; Chrome/Firefox core probes (2 passed, 56.1s) and M1 regression (2 passed, 2.9m). Vite dev visibility/Retry verified in Chrome. Commit `513632d`; agent regeneration leaves git clean. |
-| M3 | Board and previews | not started | |
+| M3 | Board and previews | done | 2026-10-03: 24 connections, pan/zoom, scroll/mode/navigation, page-error reporting and isolated failures passed Chrome/Firefox (2 probes, 4.5m); typecheck/build + 20 unit tests passed. Dev-mode visibility and handler/draw/timer recovery verified in Chrome. |
 | M4 | Hover and selection | not started | |
 | M5 | Identity and re-render survival | not started | |
 | M6 | Inspector | not started | |
@@ -42,12 +42,16 @@ Append only. Anything that changes a PRD `D*` item, the protocol, or adds a depe
 | 8 | 2026-10-03 | Proposed, pending owner: dedupe Error identity within a region retry generation; an explicitly entered live retry may report a reused Error as a new occurrence | D7's per-object dedupe and R6.4's fresh retry failure conflict when code rethrows the same object; global catches of cancelled work must stay silent | Requiring callers to allocate fresh Error objects on every retry | M2 |
 | 9 | 2026-10-03 | Owner approved D7 clarification: Error identity dedupe is per region retry generation; explicit live Retry may reuse the Error as a fresh occurrence, while stale/global catches remain silent | Satisfies both exact-once catches and R6.4's new-failure-on-retry rule | Lifetime per-object dedupe requiring fresh errors from callers | M2 |
 
+| 10 | 2026-10-03 | Owner approved private `page-error { message }` event and `clear-hover` host command | M3 requires page-error badges/reports and hover clearing on host pan/zoom; existing agent-error denotes fatal agent failure, and local hover dedupe must reset | Conflating page exceptions with agent failures; clearing only host hover leaving cached agent hover stale | M3 |
+
 ## Known limitations
 Feeds the README "where this breaks". Add as discovered: what breaks, when, and why.
 
-_No unresolved M1 gate or M2 core defects found in the completed checks. Product failure-matrix verification remains M9._
+_No unresolved M1–M3 gate defects found in the completed checks. Full product failure-matrix verification remains M9; formal performance verification remains M10._
 
 - Native Interact scrolling follows the browser's gesture rules: Firefox can latch a wheel transaction to the nested container for 1500ms, so outward chaining at its boundary requires a new gesture. Select-mode emulation consumes the remainder immediately. This is native browser behavior, not an overlay fallback.
+
+- Chrome quantizes native iframe-local wheel coordinates to CSS pixels. Pointer-centred zoom uses that native coordinate; at fractional transforms it can differ from an unrounded CDP tooling coordinate by up to one iframe-local pixel. Browser probes verify the actual native anchor and bound that rounding, rather than assuming fractional CDP input survives unchanged.
 
 ## Open questions for the owner
 _None._
@@ -65,6 +69,10 @@ One line per working session: what changed, what is next.
 - 2026-10-03: M2 started. Building shared failure infrastructure and browser-free tests, with temporary M1 harness integration for browser verification. No protocol/dependency change or M3 feature work planned.
 - 2026-10-03: M2 core and 17 tests passed; Chrome exercised regional Retry, render/timer/rAF/global failures, duplicate global deliveries, cancellation and safe text rendering. Paused for D7/R6.4 clarification about explicitly reusing an Error object on Retry before finalizing the core. Owner approved generation-scoped dedupe; the final 20 unit tests and Chrome/Firefox browser checks passed.
 - 2026-10-03: M2 completed in `513632d`; final typecheck/build, 20 unit checks and deterministic agent regeneration passed. M1 browser gate still passes. No backend/protocol/dependency changes; M3 has not started.
+
+- 2026-10-03: M3 started. Reading existing transport/failure owners before replacing the harness. Owner approved the minimal page-error/clear-hover protocol additions; no dependencies or fixed backend changes planned.
+
+- 2026-10-03: M3 completed. Replaced the disposable harness with the product grid, validated screens API, viewport/preview owners, native host controls and page-error badges. Final Chrome/Firefox probes, typecheck/build and 20 unit tests pass. Dev triggers verified; no dependency or fixed backend/HTML changes. Next: M4 only.
 
 ## M0 verification evidence
 
@@ -109,3 +117,19 @@ One line per working session: what changed, what is next.
 - `npm run typecheck`, `npm run build`, and agent regeneration succeeded. `git diff f392e11 -- backend agent shared package-lock.json` was empty: no backend/HTML/agent/protocol/dependency change. The only fixed-decision clarification is owner-approved D7 retry-generation dedupe.
 - Committed build: `513632d`; `npm run build:agent` after commit produced no git changes. Browser/dev-server verification processes were stopped after the checks.
 - Scope: M2 failure infrastructure is complete; no screens API/grid/pan/zoom product work, inspector/layers, page-error badges or full failure matrix was built. Those remain M3 onward.
+
+## M3 verification evidence
+
+- Implementation: `frontend/src/api/screens.ts` validates the response body, ids, unique identities and cross-origin HTTP(S) URLs before mounting any iframe. `board.ts` owns screens/mode/single hover and one global discovery/key listener; `viewport.ts` coalesces motion into rAF snapshots; `preview.ts` owns each screenId's port, abort scope, heartbeat, ten-second deadline and page-error badge. React reads stores, paints transforms imperatively and memoizes the preview grid; pan/zoom never remounts the iframes. The canvas uses overflow clipping so focus cannot silently scroll the host board.
+- The disposable harness and temporary failure shell were removed. The product uses one React root, board and per-preview regional boundaries, fixed 1280×800 sandboxed iframes and a four-column grid. Outlines, selection, reconciliation, inspector and layers remain their later milestones.
+- Protocol: owner approved `page-error { message }` and `clear-hover`. Native page error/rejection listeners forward occurrences over the private port (queued before connection when necessary), without preventing ordinary page/browser delivery. Page occurrences call `fail()` with a badge publisher and do not kill the preview; agent failures still use its fatal regional publisher. Host pan/zoom clears host hover and agent caches.
+- Production run: `npm start` built and served host `:5173`, API `:4000`, pages `:4001`. `npx playwright test --config /tmp/figr-m3-check/playwright.config.ts` finished **2 passed (4.5m)** on Google Chrome 153 via agent-browser native pointer/key input (CDP wheel/privileged observations) and Playwright Firefox 155. These are disposable milestone probes outside `frontend/e2e/`; the five product E2E cases still belong to M10.
+- Both browsers: all 24 distinct screen ids had distinct ready instance tokens, using six repeated URLs; dimensions were 1280×800, sandbox exactly D9, overlay shadow closed. All names were present. Four Docs previews independently produced the expected analytics rejection badge/message and exactly four preview reports, each with its own screenId.
+- Motion: empty-space wheel and captured drag changed viewport coordinates correctly. Ctrl/Cmd-wheel clamped exactly at 25%/400%, kept the native pointer anchor fixed, and worked over previews in both modes. Select wheel scrolled the nested dashboard container first, then chained its remainder to the page; Interact used native scrolling. The board viewport did not move on ordinary preview wheel input. Pan/zoom cleared hover, and moving back over the same element emitted its original id again. Long idle periods retained all 24 heartbeat connections.
+- Input/navigation: disabled submit was hoverable/clickable with no page action; Select blocked input focus, checkbox toggling and links. Native iframe-focused I/V switched mode, while editable `i` remained text. Interact page 2 → page 1 produced a new ready instance only for that preview; a hash-only link retained the instance. Select worked after navigation. Crash clicks in Select were silent; Interact clicks produced a nonfatal Page error badge with its message and exactly one correctly attributed report, including original scr-01. Repeated dev page-error injections were separate occurrences and left all regions operational.
+- Isolation/retry: a dev-blocked first preview used the real ten-second handshake timeout, showed `Couldn't connect to this preview`, added one report and left 23 ready; Retry restored all 24 without another report. A privileged port replacement caused a real missed heartbeat/pong timeout, isolated to that preview, with one report and successful Retry. Actual React board render failure added exactly one report through root/boundary dedupe; Retry restored the board. A real screens `?fail=1` response failed only the board; Retry fetched and mounted all screens again.
+- Response boundary: 200 truncated JSON, unsafe preview URL and duplicate screen ids were rejected before iframe creation; each first failure reported once and another failed Retry reported a new occurrence. A deliberately held malformed response delivered after its generation was aborted changed nothing and added no report. Normal production `/` showed no dev menu and no fatal fallback.
+- Development smoke: `npm run dev` at `/` without `?dev` served `/@vite/client`, displayed the dev registry and connected all 24. Native menu clicks for board handler, drawing/rAF and timer failures each showed one board fallback and incremented reports exactly once (4→5, 9→10, 14→15); each Retry recovered all 24. Intervening +4 increments were the fresh Docs pages' expected native rejection occurrences.
+- Tooling corrections: the first probe used a rounded native pointer against a fractional expectation and tried to click an offscreen Retry. It now pans the affected preview into view and verifies the actual native iframe wheel coordinate plus a one-local-pixel rounding bound. Synchronous CLI navigation also blocked Playwright network-route callbacks; asynchronous CLI execution fixed the verification deadlock. No product assertion was skipped, no project dependency added and no product test weakened.
+- Artifacts: `/tmp/figr-m3-chrome-agent-browser.json`, `/tmp/figr-m3-firefox.json`, matching production screenshots, `/tmp/figr-m3-dev.png`, and server/dev logs in `/tmp/figr-m3-*.log`. Final `npm run typecheck`, `npm run build`, `npm test` (**20 passed**) succeeded; the regenerated agent bundle is included. No server/data or page HTML changes from M2; all HTML differences from baseline remain only the approved M1 first-head script tags.
+- Scope: M3 is complete. M4 and later features were not started; full failure matrix, formal performance checks and the five submission E2E tests remain deferred to their designated milestones.

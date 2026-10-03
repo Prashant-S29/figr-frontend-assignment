@@ -1,7 +1,0 @@
-/* Lays out the disposable protocol probes and unscaled iframe; no board or product styling is owned here. */
-body { margin: 0; font: 13px system-ui, sans-serif; }
-h1 { margin: 8px; font-size: 18px; }
-.controls { display: flex; gap: 12px; align-items: center; padding: 8px; }
-.probes { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; padding: 8px; }
-.probes > span { height: 20px; overflow: hidden; white-space: nowrap; }
-iframe { display: block; border: 0; }

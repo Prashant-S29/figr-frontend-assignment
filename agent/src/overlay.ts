@@ -121,6 +121,9 @@ export function createOverlay(instanceId: string, send: (message: AgentMessage) 
     send({ type: "key", key: input.key, code: input.code, shiftKey: input.shiftKey, ctrlKey: input.ctrlKey, metaKey: input.metaKey, altKey: input.altKey, editable, repeat: input.repeat });
   }
 
+  /** Resets cached hover after host movement so the same element can emit a fresh intent. */
+  function clearHover(): void { hover(null); }
+
   /** Switches only the agent overlay; the host retains all selection and product state. */
   function setMode(next: Mode): void {
     mode = next;
@@ -135,5 +138,5 @@ export function createOverlay(instanceId: string, send: (message: AgentMessage) 
   native.addListener.call(surface, "pointerleave", protect(leave));
   native.addListener.call(window, "wheel", protect(wheel), capture);
   native.addListener.call(window, "keydown", protect(key), capture);
-  return { setMode };
+  return { setMode, clearHover };
 }
