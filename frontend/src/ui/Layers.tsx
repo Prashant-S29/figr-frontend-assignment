@@ -1,7 +1,7 @@
-// Renders the active preview's fixed-row lazy tree, regional loading failures and keyboard focus; the Layers store owns all tree and sync state.
-import { useEffect, useRef, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+// Renders the active preview's fixed-row lazy/search tree, failures and keyboard focus; the Layers store owns tree, sync and remembered scrolling.
+import { useEffect, useLayoutEffect, useRef, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { guard } from "../core/guard";
-import { visibleTreeRows } from "../stores/layers-tree";
+import { searchTree, visibleTreeRows } from "../stores/layers-tree";
 import type { LayersSnapshot, LayersStore } from "../stores/layers";
 import { RegionBoundary } from "./RegionBoundary";
 
@@ -16,15 +16,20 @@ function RowStatus({ store, snapshot, elementId, depth }: { store: LayersStore; 
 
 function Tree({ store, snapshot }: { store: LayersStore; snapshot: LayersSnapshot }) {
   const tree = useRef<HTMLDivElement>(null);
-  const rows = visibleTreeRows({ roots: snapshot.roots, children: snapshot.children, parents: snapshot.parents, expanded: snapshot.expanded });
+  const projection = snapshot.query ? { ...searchTree(snapshot.searchPaths), expanded: snapshot.searchExpanded } : snapshot;
+  const rows = visibleTreeRows(projection);
   useEffect(() => {
     if (!tree.current?.contains(document.activeElement) || !snapshot.focusedId) return;
     document.getElementById(`layer-button-${snapshot.focusedId}`)?.focus({ preventScroll: true });
   }, [snapshot.focusedId]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!snapshot.scrollId) return;
-    document.getElementById(`layer-row-${snapshot.scrollId}`)?.scrollIntoView({ block: "nearest" });
-  }, [snapshot.scrollRevision, snapshot.scrollId]);
+    guard(snapshot.region!.target, () => {
+      document.getElementById(`layer-row-${snapshot.scrollId}`)?.scrollIntoView({ block: "nearest" });
+      const panel = tree.current?.closest<HTMLElement>('[data-testid="layers"]');
+      if (panel) store.setScroll(panel.scrollTop, panel.scrollLeft);
+    })();
+  }, [store, snapshot.scrollRevision, snapshot.scrollId]);
   const target = snapshot.region!.target;
   const keyDown = guard(target, (event: ReactKeyboardEvent) => {
     if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
@@ -34,9 +39,9 @@ function Tree({ store, snapshot }: { store: LayersStore; snapshot: LayersSnapsho
   const focus = guard(target, () => store.focusFirst());
   return <div className="layers-tree" role="tree" tabIndex={0} ref={tree} onKeyDown={keyDown} onFocus={focus} data-testid="layers-tree">
     {rows.map(({ elementId, depth }) => {
-      const node = snapshot.nodes.get(elementId);
+      const node = projection.nodes.get(elementId);
       if (!node) return null;
-      const expanded = snapshot.expanded.has(elementId);
+      const expanded = projection.expanded.has(elementId);
       return <div key={elementId}>
         <div
           id={`layer-row-${elementId}`}
@@ -66,7 +71,7 @@ function Tree({ store, snapshot }: { store: LayersStore; snapshot: LayersSnapsho
             onClick={guard(target, event => store.selectRow(elementId, event.shiftKey))}
           >{node.name}</button>
         </div>
-        <RowStatus store={store} snapshot={snapshot} elementId={elementId} depth={depth} />
+        {!snapshot.query ? <RowStatus store={store} snapshot={snapshot} elementId={elementId} depth={depth} /> : null}
       </div>;
     })}
   </div>;
@@ -75,12 +80,29 @@ function Tree({ store, snapshot }: { store: LayersStore; snapshot: LayersSnapsho
 function LayersContent({ store, snapshot }: { store: LayersStore; snapshot: LayersSnapshot }) {
   if (snapshot.renderError) throw snapshot.renderError;
   if (snapshot.rootLoading) return <p data-testid="layers-loading">Loading…</p>;
-  return <Tree store={store} snapshot={snapshot} />;
+  return <>
+    <label className="layers-search-label">Search layers
+      <input type="search" value={snapshot.query} placeholder="Search layers" data-testid="layers-search" onChange={guard(snapshot.region!.target, event => store.setQuery(event.target.value))} />
+    </label>
+    {snapshot.searchLoading ? <p data-testid="layers-search-loading">Loading…</p> : null}
+    {snapshot.query && !snapshot.searchLoading && !snapshot.searchPaths.length ? <p data-testid="layers-search-empty">No matches</p> : null}
+    <Tree store={store} snapshot={snapshot} />
+  </>;
 }
 
 export function Layers({ store }: { store: LayersStore }) {
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot);
-  return <aside className="layers" data-testid="layers">
+  const panel = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    if (!panel.current || snapshot.rootLoading || snapshot.searchLoading) return;
+    if (!snapshot.region) return;
+    guard(snapshot.region.target, () => {
+      const position = store.getScroll();
+      panel.current!.scrollTop = position.top;
+      panel.current!.scrollLeft = position.left;
+    })();
+  }, [store, snapshot.revision, snapshot.rootLoading, snapshot.searchLoading, snapshot.nodes, snapshot.children, snapshot.expanded, snapshot.query, snapshot.searchPaths, snapshot.searchExpanded]);
+  return <aside className="layers" data-testid="layers" ref={panel} onScroll={snapshot.region ? guard(snapshot.region.target, event => store.setScroll(event.currentTarget.scrollTop, event.currentTarget.scrollLeft)) : undefined}>
     <h2>Layers</h2>
     {!snapshot.screenId ? <p data-testid="layers-empty">Click something in a preview</p> : null}
     {snapshot.region

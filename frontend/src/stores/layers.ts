@@ -1,12 +1,12 @@
-// Owns the active preview's lazy Layers tree, per-row attempts, reveal/focus state and panel failure regions; agents own DOM reads and React only renders snapshots.
-import type { AgentMessage, HostMessage, Target, TreeNode } from "../../../shared/protocol";
+// Owns per-preview lazy Layers state, live level replacement, derived search, row attempts and panel lifetimes; agents own DOM reads and React only renders snapshots.
+import type { AgentMessage, HostMessage, Target, TreeLevel, TreeNode } from "../../../shared/protocol";
 import { runAttempt, type Attempt } from "../core/attempt";
 import { registerDevTrigger } from "../core/dev-registry";
 import type { FailureTarget } from "../core/fail";
 import { guard } from "../core/guard";
 import { scopedTimeout } from "../core/schedule";
 import { createFailureRegion, type FailureRegion } from "./failure-region";
-import { nearestVisibleRow, visibleTreeRows } from "./layers-tree";
+import { nearestVisibleRow, replaceTreeLevels, searchTree, visibleTreeRows } from "./layers-tree";
 import type { SelectionStore } from "./selection";
 
 export type RowLoadState =
@@ -31,6 +31,11 @@ export interface LayersSnapshot {
   readonly scrollId: string | null;
   readonly scrollRevision: number;
   readonly renderError: Error | null;
+  readonly query: string;
+  readonly searchLoading: boolean;
+  readonly searchPaths: readonly (readonly TreeNode[])[];
+  readonly searchExpanded: ReadonlySet<string>;
+  readonly beforeSearch: ReadonlySet<string> | null;
 }
 
 interface PendingChildren {
@@ -63,13 +68,19 @@ export function createLayers(
   let snapshot: LayersSnapshot = emptySnapshot(0);
   let requestId = 0;
   let selectionToken = "";
+  let revealVersion = 0;
   let hoverToken = "";
   let rootAttempt: Attempt | null = null;
   let rootPromise: Promise<boolean> | null = null;
   let revealAttempt: Attempt | null = null;
   let hoverAttempt: Attempt | null = null;
   let failNextParent: string | null = null;
+  let skipNextSearch = false;
   const readyScreens = new Set<string>();
+  const remembered = new Map<string, LayersSnapshot>();
+  const positions = new Map<string, { top: number; left: number }>();
+  let searchRequest = 0;
+  let cancelSearchDeadline: (() => void) | null = null;
   const rowOwners = new Map<string, RowOwner>();
   const pendingChildren = new Map<number, PendingChildren>();
   const pendingAncestors = new Map<number, PendingAncestors>();
@@ -95,6 +106,11 @@ export function createLayers(
       scrollId: null,
       scrollRevision: 0,
       renderError: null,
+      query: "",
+      searchLoading: false,
+      searchPaths: [],
+      searchExpanded: new Set(),
+      beforeSearch: null,
     };
   }
 
@@ -106,11 +122,15 @@ export function createLayers(
 
   /** Reads relationships in the shape shared by visible-row and nearest-ancestor derivations. */
   function relations() {
-    return { roots: snapshot.roots, children: snapshot.children, parents: snapshot.parents, expanded: snapshot.expanded };
+    return snapshot.query ? { ...searchTree(snapshot.searchPaths), expanded: snapshot.searchExpanded } : { roots: snapshot.roots, children: snapshot.children, parents: snapshot.parents, expanded: snapshot.expanded };
   }
 
   /** Cancels request/reveal work and disposes all child regions without touching the current whole-panel region. */
   function clearWork(): void {
+    revealVersion += 1;
+    cancelSearchDeadline?.();
+    cancelSearchDeadline = null;
+    searchRequest = 0;
     rootAttempt?.cancel();
     revealAttempt?.cancel();
     hoverAttempt?.cancel();
@@ -130,6 +150,11 @@ export function createLayers(
   /** Replaces the active preview's whole Layers owner, including page-instance-local ids and in-flight replies. */
   function activate(screenId: string | null, force = false): void {
     if (!force && snapshot.screenId === screenId) return;
+    if (snapshot.screenId && !force) {
+      const rows = new Map([...snapshot.rows].filter(([, state]) => state.kind === "loaded"));
+      remembered.set(snapshot.screenId, { ...snapshot, rows, renderError: null });
+      if (snapshot.query) send(snapshot.screenId, { type: "tree-search", requestId: ++requestId, query: "" });
+    }
     clearWork();
     snapshot.region?.dispose();
     selectionToken = hoverToken = "";
@@ -138,8 +163,14 @@ export function createLayers(
       return;
     }
     const region = createFailureRegion("layers", { screenId }, owner().ctx.scope);
-    publish({ ...emptySnapshot(snapshot.revision + 1), screenId, region, rootLoading: readyScreens.has(screenId) });
-    if (readyScreens.has(screenId)) loadRoot();
+    const saved = !force ? remembered.get(screenId) : undefined;
+    publish({ ...(saved ?? emptySnapshot(snapshot.revision + 1)), revision: snapshot.revision + 1, screenId, region, rootLoading: !saved && readyScreens.has(screenId), scrollId: null });
+    if (readyScreens.has(screenId)) {
+      loadRoot();
+      watchTree();
+      for (const id of snapshot.expanded) if (snapshot.nodes.get(id)?.hasChildren && !snapshot.rows.has(id)) loadRow(id);
+      if (snapshot.query) requestSearch();
+    }
   }
 
   /** Reuses one pending request per parent and attributes its three-second timeout to the supplied region. */
@@ -214,6 +245,7 @@ export function createLayers(
     }
     if (parentId !== null) children.set(parentId, ids);
     publish({ ...snapshot, nodes, parents, children, roots: parentId === null ? ids : snapshot.roots });
+    watchTree();
   }
 
   /** Adds ancestor metadata and links without pretending that an unrequested sibling level is complete. */
@@ -298,10 +330,11 @@ export function createLayers(
   }
 
   /** Reveals one body-relative path level by level, stopping if a mutation makes any requested relation stale. */
-  async function revealPath(path: readonly TreeNode[], token: string, expanded: Set<string>): Promise<boolean> {
+  async function revealPath(path: readonly TreeNode[], token: string, version: number, expanded: Set<string>): Promise<boolean> {
+    if (!path.length || version !== revealVersion || selectionToken !== token) return false;
     applyPath(path);
     for (let index = 0; index < path.length; index += 1) {
-      if (selectionToken !== token || snapshot.screenId === null) return false;
+      if (selectionToken !== token || version !== revealVersion || snapshot.screenId === null) return false;
       const parentId = index ? path[index - 1].elementId : null;
       if (!await ensureLoaded(parentId)) return false;
       const siblings = parentId === null ? snapshot.roots : snapshot.children.get(parentId) ?? [];
@@ -316,6 +349,7 @@ export function createLayers(
     revealAttempt?.cancel();
     if (!snapshot.region || !targets.length) return;
     const region = snapshot.region;
+    const version = ++revealVersion;
     /** Requests all independent ancestor paths without a discovery waterfall. */
     function load(signal: AbortSignal): Promise<readonly (readonly TreeNode[])[]> {
       return Promise.all(targets.map(target => requestAncestors(target.elementId, region.target, signal)));
@@ -325,8 +359,8 @@ export function createLayers(
       /** Loads shared ancestor levels, then publishes one atomic expansion and final panel scroll. */
       async function expandPaths(): Promise<void> {
         const expanded = new Set(snapshot.expanded);
-        const results = await Promise.all(paths.map(path => revealPath(path, token, expanded)));
-        if (selectionToken !== token || !results.every(Boolean)) return;
+        const results = await Promise.all(paths.map(path => revealPath(path, token, version, expanded)));
+        if (snapshot.region !== region || selectionToken !== token || version !== revealVersion || !results.every(Boolean)) return;
         const focusedId = targets[targets.length - 1].elementId;
         publish({ ...snapshot, expanded, focusedId, scrollId: focusedId, scrollRevision: snapshot.scrollRevision + 1 });
       }
@@ -354,6 +388,7 @@ export function createLayers(
   /** Mirrors active preview, selected rows and hover proxy from the sole host selection owner. */
   function synchronizeSelection(): void {
     const selected = selection.getSnapshot();
+    const restoring = selected.activeScreenId !== snapshot.screenId && selected.activeScreenId !== null && remembered.has(selected.activeScreenId);
     if (selected.activeScreenId !== snapshot.screenId) activate(selected.activeScreenId);
     if (!snapshot.screenId) return;
     const selectedTargets = selected.screenId === snapshot.screenId ? selected.targets : [];
@@ -370,7 +405,16 @@ export function createLayers(
         const allVisible = selectedTargets.every(target => nearestVisibleRow(target.elementId, relations()) === target.elementId);
         if (allVisible) {
           const focusedId = selectedTargets[selectedTargets.length - 1].elementId;
-          publish({ ...snapshot, focusedId, scrollId: focusedId, scrollRevision: snapshot.scrollRevision + 1 });
+          if (!restoring) publish({ ...snapshot, focusedId, scrollId: focusedId, scrollRevision: snapshot.scrollRevision + 1 });
+        } else if (snapshot.query) {
+          const projection = searchTree(snapshot.searchPaths);
+          const searchExpanded = new Set(snapshot.searchExpanded);
+          for (const target of selectedTargets) {
+            let parent = projection.parents.get(target.elementId);
+            while (parent) { searchExpanded.add(parent); parent = projection.parents.get(parent); }
+          }
+          const focusedId = selectedTargets[selectedTargets.length - 1].elementId;
+          publish({ ...snapshot, searchExpanded, focusedId, scrollId: focusedId, scrollRevision: snapshot.scrollRevision + 1 });
         } else reveal(selectedTargets, selectionToken);
       }
     }
@@ -393,15 +437,96 @@ export function createLayers(
   function receiveAncestors(message: Extract<AgentMessage, { type: "tree-ancestors-result" }>): void {
     const pending = pendingAncestors.get(message.requestId);
     if (!pending) return;
-    if (!message.path.length || message.path[message.path.length - 1].elementId !== pending.elementId) pending.reject(new Error("Tree ancestors response mismatch"));
+    if (message.path.length && message.path[message.path.length - 1].elementId !== pending.elementId) pending.reject(new Error("Tree ancestors response mismatch"));
     else pending.resolve(message.path);
   }
 
-  /** Routes only current active-preview tree replies; stale page-instance replies remain silent. */
+  /** Subscribes exactly the loaded lazy levels, including collapsed ones, without loading unseen branches. */
+  function watchTree(): void {
+    if (!snapshot.screenId || !readyScreens.has(snapshot.screenId)) return;
+    send(snapshot.screenId, { type: "tree-watch", parentElementIds: [null, ...snapshot.children.keys()] });
+  }
+
+  /** Replaces loaded levels for active or remembered trees and disposes only removed row owners. */
+  function updateTree(screenId: string, levels: readonly TreeLevel[]): void {
+    const current = screenId === snapshot.screenId ? snapshot : remembered.get(screenId);
+    if (!current) return;
+    const loaded = levels.filter(level => level.parentElementId === null || current.children.has(level.parentElementId));
+    if (!loaded.length) return;
+    const replacement = replaceTreeLevels(current, loaded);
+    const rows = new Map(current.rows);
+    for (const level of loaded) if (level.parentElementId !== null && !replacement.removed.has(level.parentElementId)) rows.set(level.parentElementId, { kind: "loaded", children: level.children.map(node => node.elementId) });
+    for (const id of replacement.removed) rows.delete(id);
+    const next = { ...current, ...replacement, rows, hoveredId: current.hoveredId && replacement.removed.has(current.hoveredId) ? null : current.hoveredId, focusedId: current.focusedId && replacement.removed.has(current.focusedId) ? null : current.focusedId };
+    if (screenId !== snapshot.screenId) {
+      remembered.set(screenId, next);
+      if (replacement.removed.size) send(screenId, { type: "tree-watch", parentElementIds: [null, ...next.children.keys()] });
+      return;
+    }
+    for (const id of replacement.removed) {
+      const entry = rowOwners.get(id);
+      entry?.unsubscribe();
+      entry?.region.dispose();
+      rowOwners.delete(id);
+    }
+    publish(next);
+    if (replacement.removed.size) watchTree();
+    const hover = selection.getSnapshot().hover;
+    if (hover?.screenId === screenId && replacement.removed.has(hover.target.elementId)) selection.clearHover();
+  }
+
+  /** Starts one latest-query correlation with a Layers-owned deadline; matching updates stay live until replaced. */
+  function requestSearch(): void {
+    cancelSearchDeadline?.();
+    if (!snapshot.region || !snapshot.screenId) return;
+    searchRequest = ++requestId;
+    publish({ ...snapshot, searchLoading: !!snapshot.query, searchPaths: [] });
+    if (snapshot.query) {
+      /** Fails only the live Layers search, never an Inspector or sibling preview. */
+      function expired(): void { throw new Error("Couldn't load"); }
+      cancelSearchDeadline = scopedTimeout(snapshot.region.target, expired, 3_000);
+    }
+    if (skipNextSearch) { skipNextSearch = false; return; }
+    send(snapshot.screenId, { type: "tree-search", requestId: searchRequest, query: snapshot.query });
+  }
+
+  /** Captures the literal expansion snapshot on entry and restores it only when search clears. */
+  function setQuery(query: string): void {
+    if (query === snapshot.query || !snapshot.screenId) return;
+    revealVersion += 1;
+    revealAttempt?.cancel();
+    const beforeSearch = snapshot.beforeSearch ?? new Set(snapshot.expanded);
+    publish({ ...snapshot, query, beforeSearch: query ? beforeSearch : null, expanded: query ? snapshot.expanded : new Set(beforeSearch), scrollId: null });
+    requestSearch();
+  }
+
+  /** Routes current replies and live updates; inactive trees update without retaining panel requests. */
   function receive(screenId: string, message: AgentMessage): void {
-    if (screenId !== snapshot.screenId) return;
-    if (message.type === "tree-children-result") receiveChildren(message);
-    else if (message.type === "tree-ancestors-result") receiveAncestors(message);
+    if (message.type === "tree-update") {
+      const region = screenId === snapshot.screenId ? snapshot.region : null;
+      if (region) guard(region.target,
+        /** Applies this mutation batch under its active panel's failure attribution. */
+        () => updateTree(screenId, message.levels),
+      )();
+      else updateTree(screenId, message.levels);
+      return;
+    }
+    if (screenId !== snapshot.screenId || !snapshot.region) return;
+    /** Attributes tree/search application errors to Layers rather than the transport's preview region. */
+    function apply(): void {
+      if (message.type === "tree-children-result") receiveChildren(message);
+      else if (message.type === "tree-ancestors-result") receiveAncestors(message);
+      else if (message.type === "tree-search-result" && message.requestId === searchRequest && snapshot.query) {
+        cancelSearchDeadline?.();
+        cancelSearchDeadline = null;
+        const projection = searchTree(message.paths);
+        const previous = searchTree(snapshot.searchPaths);
+        const searchExpanded = new Set([...snapshot.searchExpanded].filter(id => projection.nodes.has(id)));
+        for (const id of projection.expanded) if (snapshot.searchLoading || !previous.nodes.has(id)) searchExpanded.add(id);
+        publish({ ...snapshot, searchLoading: false, searchPaths: message.paths, searchExpanded });
+      }
+    }
+    guard(snapshot.region.target, apply)();
   }
 
   /** Marks a connected page ready and starts a deferred active root load. */
@@ -413,6 +538,8 @@ export function createLayers(
   /** Drops one replaced document's ids and requests while preserving the active-preview choice for its next ready instance. */
   function forget(screenId: string): void {
     readyScreens.delete(screenId);
+    remembered.delete(screenId);
+    positions.delete(screenId);
     if (snapshot.screenId !== screenId) return;
     clearWork();
     snapshot.region?.dispose();
@@ -423,6 +550,13 @@ export function createLayers(
 
   /** Expands a child-bearing row on first use or collapses it without cancelling its reusable in-flight request. */
   function toggle(elementId: string): void {
+    if (snapshot.query) {
+      const searchExpanded = new Set(snapshot.searchExpanded);
+      if (searchExpanded.has(elementId)) searchExpanded.delete(elementId);
+      else searchExpanded.add(elementId);
+      publish({ ...snapshot, searchExpanded, focusedId: elementId });
+      return;
+    }
     const node = snapshot.nodes.get(elementId);
     if (!node?.hasChildren) return;
     const expanded = new Set(snapshot.expanded);
@@ -440,7 +574,7 @@ export function createLayers(
   /** Selects a row through the shared selection owner and scrolls only that iframe document to it. */
   function selectRow(elementId: string, shift: boolean): void {
     if (!snapshot.screenId) return;
-    const node = snapshot.nodes.get(elementId);
+    const node = snapshot.query ? searchTree(snapshot.searchPaths).nodes.get(elementId) : snapshot.nodes.get(elementId);
     if (!node) return;
     publish({ ...snapshot, focusedId: elementId });
     selection.select(snapshot.screenId, node, shift);
@@ -450,30 +584,31 @@ export function createLayers(
   /** Makes row hover the one global hover source, so preview movement can replace it naturally. */
   function hoverRow(elementId: string | null): void {
     if (!snapshot.screenId) return;
-    const node = elementId ? snapshot.nodes.get(elementId) : null;
+    const node = elementId ? (snapshot.query ? searchTree(snapshot.searchPaths).nodes : snapshot.nodes).get(elementId) : null;
     selection.hover(snapshot.screenId, node ?? null, "layers");
   }
 
   /** Moves tree focus or expands/collapses according to the PRD's panel arrow-key model. */
   function key(key: string): void {
-    const visible = visibleTreeRows(relations());
+    const projection = relations();
+    const visible = visibleTreeRows(projection);
     if (!visible.length) return;
     const index = Math.max(0, visible.findIndex(row => row.elementId === snapshot.focusedId));
     const currentId = visible[index].elementId;
     if (key === "ArrowDown") publish({ ...snapshot, focusedId: visible[Math.min(index + 1, visible.length - 1)].elementId });
     else if (key === "ArrowUp") publish({ ...snapshot, focusedId: visible[Math.max(index - 1, 0)].elementId });
     else if (key === "ArrowRight") {
-      const node = snapshot.nodes.get(currentId);
+      const node = (snapshot.query ? searchTree(snapshot.searchPaths).nodes : snapshot.nodes).get(currentId);
       if (!node?.hasChildren) return;
-      if (!snapshot.expanded.has(currentId)) toggle(currentId);
+      if (!projection.expanded.has(currentId)) toggle(currentId);
       else {
-        const first = snapshot.children.get(currentId)?.[0];
+        const first = projection.children.get(currentId)?.[0];
         if (first) publish({ ...snapshot, focusedId: first });
       }
     } else if (key === "ArrowLeft") {
-      if (snapshot.expanded.has(currentId)) toggle(currentId);
+      if (projection.expanded.has(currentId)) toggle(currentId);
       else {
-        const parentId = snapshot.parents.get(currentId);
+        const parentId = projection.parents.get(currentId);
         if (parentId) publish({ ...snapshot, focusedId: parentId });
       }
     }
@@ -481,7 +616,7 @@ export function createLayers(
 
   /** Aligns store-owned keyboard position when a row receives focus by click or direct tab movement. */
   function focusRow(elementId: string): void {
-    if (snapshot.focusedId !== elementId && snapshot.nodes.has(elementId)) publish({ ...snapshot, focusedId: elementId });
+    if (snapshot.focusedId !== elementId && (snapshot.query ? searchTree(snapshot.searchPaths).nodes : snapshot.nodes).has(elementId)) publish({ ...snapshot, focusedId: elementId });
   }
 
   /** Initializes focus when keyboard users enter a nonempty panel without a current row. */
@@ -491,15 +626,40 @@ export function createLayers(
     if (first) publish({ ...snapshot, focusedId: first.elementId });
   }
 
-  /** Rebuilds panel-owned child regions and root data after a whole-Layers Retry. */
+  /** Remembers numeric panel scrolling without rendering on every native scroll event. */
+  function setScroll(top: number, left: number): void {
+    if (snapshot.screenId) positions.set(snapshot.screenId, { top, left });
+  }
+
+  /** Exposes the current preview's saved vertical and horizontal deep-tree scrolling. */
+  function getScroll(): { top: number; left: number } {
+    return snapshot.screenId ? positions.get(snapshot.screenId) ?? { top: 0, left: 0 } : { top: 0, left: 0 };
+  }
+
+  /** Drops all per-document tree memory when the board generation reloads. */
+  function reset(): void {
+    activate(null);
+    remembered.clear();
+    positions.clear();
+    readyScreens.clear();
+  }
+
+  /** Recreates cancelled child attempts after a Layers Retry while preserving literal search and per-preview tree memory. */
   function retryLayers(): void {
     const screenId = snapshot.screenId;
     const region = snapshot.region;
     if (!screenId || !region) return;
+    const prior = snapshot;
+    const rows = new Map([...prior.rows].filter(([, state]) => state.kind === "loaded"));
     clearWork();
     selectionToken = hoverToken = "";
-    publish({ ...emptySnapshot(snapshot.revision + 1), screenId, region, rootLoading: readyScreens.has(screenId) });
-    if (readyScreens.has(screenId)) loadRoot();
+    publish({ ...prior, revision: prior.revision + 1, region, rows, renderError: null, scrollId: null });
+    if (readyScreens.has(screenId)) {
+      loadRoot();
+      watchTree();
+      for (const id of snapshot.expanded) if (snapshot.nodes.get(id)?.hasChildren && !snapshot.rows.has(id)) loadRow(id);
+      if (snapshot.query) requestSearch();
+    }
     synchronizeSelection();
   }
 
@@ -524,6 +684,14 @@ export function createLayers(
     loadRow(node.elementId);
   }
 
+  /** Leaves a real search unanswered so its normal three-second Layers deadline is exercised. */
+  function injectSearchTimeout(): void {
+    if (!snapshot.screenId) return;
+    skipNextSearch = true;
+    if (snapshot.query) requestSearch();
+    else setQuery("Setting 30.10");
+  }
+
   /** Throws from the actual Layers render path while retaining board and Inspector state. */
   function injectRenderFailure(): void { publish({ ...snapshot, renderError: new Error("Layers render failure") }); }
 
@@ -533,6 +701,7 @@ export function createLayers(
   if (dev) {
     removeTriggers.push(
       registerDevTrigger({ id: "layers-row-fail", label: "Layers row load fails", target: layersTarget, run: injectRowFailure }),
+      registerDevTrigger({ id: "layers-search-timeout", label: "Layers search never answers (3s)", target: layersTarget, run: injectSearchTimeout }),
       registerDevTrigger({ id: "layers-render", label: "Layers render fails", target: layersTarget, run: injectRenderFailure }),
     );
   }
@@ -559,7 +728,7 @@ export function createLayers(
     listeners.clear();
   }
 
-  return { getSnapshot, subscribe, receive, ready, forget, toggle, retryRow, retryLayers, selectRow, hoverRow, key, focusRow, focusFirst, dispose };
+  return { getSnapshot, subscribe, receive, ready, forget, toggle, retryRow, retryLayers, selectRow, hoverRow, key, focusRow, focusFirst, setQuery, setScroll, getScroll, reset, dispose };
 }
 
 export type LayersStore = ReturnType<typeof createLayers>;

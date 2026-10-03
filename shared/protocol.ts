@@ -1,4 +1,4 @@
-// Validates private inspection, identity reconciliation, tracked geometry, traversal and liveness traffic; DOM references and host-owned selection never cross here.
+// Validates private inspection, reconciliation, geometry, lazy/live tree and search traffic; DOM references and host-owned selection never cross here.
 export type Mode = "select" | "interact";
 export interface Target { elementId: string; name: string }
 export interface Rect { x: number; y: number; width: number; height: number }
@@ -18,6 +18,7 @@ export interface LiveData {
 }
 export interface Geometry extends Target { box: Rect | null; clip: Rect | null; live: LiveData | null }
 export interface TreeNode extends Target { dataKey: string | null; hasChildren: boolean }
+export interface TreeLevel { parentElementId: string | null; children: TreeNode[] }
 export type Direction = "child" | "parent" | "next" | "previous";
 export interface Hello { type: "hello"; instanceId: string }
 export interface Connect { type: "connect"; instanceId: string; mode: Mode }
@@ -29,7 +30,9 @@ export type HostMessage =
   | { type: "navigate"; requestId: number; elementId: string; direction: Direction }
   | { type: "tree-children"; requestId: number; parentElementId: string | null }
   | { type: "tree-ancestors"; requestId: number; elementId: string }
-  | { type: "scroll-element"; elementId: string };
+  | { type: "scroll-element"; elementId: string }
+  | { type: "tree-watch"; parentElementIds: (string | null)[] }
+  | { type: "tree-search"; requestId: number; query: string };
 export type AgentMessage =
   | { type: "ready"; instanceId: string }
   | { type: "pong"; requestId: number }
@@ -43,7 +46,9 @@ export type AgentMessage =
   | { type: "navigate-result"; requestId: number; target: Target | null }
   | { type: "tree-children-result"; requestId: number; parentElementId: string | null; children: TreeNode[] }
   | { type: "tree-ancestors-result"; requestId: number; path: TreeNode[] }
-  | { type: "reconcile"; targets: Target[]; goneElementIds: string[] };
+  | { type: "reconcile"; targets: Target[]; goneElementIds: string[] }
+  | { type: "tree-update"; levels: TreeLevel[] }
+  | { type: "tree-search-result"; requestId: number; paths: TreeNode[][] };
 
 /** Rejects non-object wire values before any field is accessed. */
 function record(value: unknown): value is Record<string, unknown> {
@@ -87,6 +92,19 @@ function elementId(value: unknown): value is string {
 /** Validates one lazily exposed tree node and its optional reporting key. */
 function treeNode(value: unknown): value is TreeNode {
   return record(value) && target(value) && (value.dataKey === null || typeof value.dataKey === "string") && typeof value.hasChildren === "boolean";
+}
+
+/** Validates a complete unique child level rather than permitting partial append updates. */
+function treeLevel(value: unknown): value is TreeLevel {
+  return record(value) && (value.parentElementId === null || elementId(value.parentElementId))
+    && Array.isArray(value.children) && value.children.every(treeNode)
+    && new Set((value.children as TreeNode[]).map(item => item.elementId)).size === value.children.length;
+}
+
+/** Validates one nonempty, cycle-free body-relative search path. */
+function treePath(value: unknown): value is TreeNode[] {
+  return Array.isArray(value) && value.length > 0 && value.every(treeNode)
+    && new Set((value as TreeNode[]).map(item => item.elementId)).size === value.length;
 }
 
 /** Allows only nonnegative finite dimensions; off-viewport element positions may be negative. */
@@ -141,6 +159,9 @@ export function isHostMessage(value: unknown): value is HostMessage {
     case "tree-children": return request(value.requestId) && (value.parentElementId === null || elementId(value.parentElementId));
     case "tree-ancestors": return request(value.requestId) && elementId(value.elementId);
     case "scroll-element": return elementId(value.elementId);
+    case "tree-watch": return Array.isArray(value.parentElementIds) && value.parentElementIds.every(id => id === null || elementId(id))
+      && new Set(value.parentElementIds).size === value.parentElementIds.length;
+    case "tree-search": return request(value.requestId) && typeof value.query === "string";
     default: return false;
   }
 }
@@ -158,6 +179,10 @@ export function isAgentMessage(value: unknown): value is AgentMessage {
       && new Set((value.children as TreeNode[]).map(item => item.elementId)).size === value.children.length;
     case "tree-ancestors-result": return request(value.requestId) && Array.isArray(value.path) && value.path.every(treeNode)
       && new Set((value.path as TreeNode[]).map(item => item.elementId)).size === value.path.length;
+    case "tree-update": return Array.isArray(value.levels) && value.levels.every(treeLevel)
+      && new Set((value.levels as TreeLevel[]).map(level => level.parentElementId)).size === value.levels.length;
+    case "tree-search-result": return request(value.requestId) && Array.isArray(value.paths) && value.paths.every(treePath)
+      && new Set((value.paths as TreeNode[][]).map(path => path[path.length - 1].elementId)).size === value.paths.length;
     case "reconcile": {
       if (!Array.isArray(value.targets) || !value.targets.every(item => target(item) && item !== null) || !Array.isArray(value.goneElementIds) || !value.goneElementIds.every(elementId)) return false;
       const targetIds = (value.targets as Target[]).map(item => item.elementId);

@@ -1,4 +1,6 @@
-// Derives fixed-order visible Layers rows and collapsed-ancestor highlights; requests, selection and React rendering stay elsewhere.
+// Derives visible rows, isolated search projections and complete live-level replacement; request lifetimes, selection and React rendering stay elsewhere.
+import type { TreeLevel, TreeNode } from "../../../shared/protocol";
+
 export interface TreeRelations {
   readonly roots: readonly string[];
   readonly children: ReadonlyMap<string, readonly string[]>;
@@ -25,6 +27,62 @@ export function visibleTreeRows(tree: TreeRelations): readonly VisibleTreeRow[] 
   }
   for (const rootId of tree.roots) visit(rootId, 0);
   return rows;
+}
+
+/** Builds an independent search projection in document order, including ancestors without touching the lazy tree. */
+export function searchTree(paths: readonly (readonly TreeNode[])[]) {
+  const roots: string[] = [];
+  const nodes = new Map<string, TreeNode>();
+  const children = new Map<string, string[]>();
+  const parents = new Map<string, string | null>();
+  const expanded = new Set<string>();
+  for (const path of paths) {
+    for (let index = 0; index < path.length; index += 1) {
+      const node = path[index];
+      const parentId = index ? path[index - 1].elementId : null;
+      nodes.set(node.elementId, node);
+      parents.set(node.elementId, parentId);
+      const siblings = parentId === null ? roots : children.get(parentId) ?? [];
+      if (!siblings.includes(node.elementId)) siblings.push(node.elementId);
+      if (parentId !== null) { children.set(parentId, siblings); expanded.add(parentId); }
+    }
+  }
+  return { roots, nodes, children, parents, expanded };
+}
+
+/** Replaces live loaded levels and prunes removed subtrees without disturbing surviving expansion or row order. */
+export function replaceTreeLevels<T extends TreeRelations & { readonly nodes: ReadonlyMap<string, TreeNode> }>(tree: T, levels: readonly TreeLevel[]) {
+  const nodes = new Map(tree.nodes);
+  const parents = new Map(tree.parents);
+  const children = new Map(tree.children);
+  const expanded = new Set(tree.expanded);
+  let roots = tree.roots;
+  for (const level of levels) {
+    const ids = level.children.map(node => node.elementId);
+    if (level.parentElementId === null) roots = ids;
+    else children.set(level.parentElementId, ids);
+    for (const node of level.children) {
+      nodes.set(node.elementId, node);
+      parents.set(node.elementId, level.parentElementId);
+    }
+  }
+  const removed = new Set<string>();
+  /** Removes only stale parent relations, preserving real moves represented elsewhere in the same batch. */
+  function prune(elementId: string): void {
+    if (removed.has(elementId)) return;
+    removed.add(elementId);
+    for (const child of children.get(elementId) ?? []) if (parents.get(child) === elementId) prune(child);
+    nodes.delete(elementId);
+    parents.delete(elementId);
+    children.delete(elementId);
+    expanded.delete(elementId);
+  }
+  for (const level of levels) {
+    const oldIds = level.parentElementId === null ? tree.roots : tree.children.get(level.parentElementId) ?? [];
+    const nextIds = new Set(level.children.map(node => node.elementId));
+    for (const id of oldIds) if (!nextIds.has(id) && parents.get(id) === level.parentElementId) prune(id);
+  }
+  return { roots, nodes, parents, children, expanded, removed };
 }
 
 /** Maps a known hovered identity to itself or its nearest currently visible collapsed ancestor. */

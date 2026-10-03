@@ -98,6 +98,8 @@ export function createPreview(screen: Screen, parent: Scope, intents: PreviewInt
       if (message.type === "reconcile" && [...message.targets.map(item => item.elementId), ...message.goneElementIds].some(id => !id.startsWith(`${snapshot.instanceId}:`))) throw new Error("Reconciliation instance mismatch");
       if (message.type === "tree-children-result" && [message.parentElementId, ...message.children.map(item => item.elementId)].some(id => id !== null && !id.startsWith(`${snapshot.instanceId}:`))) throw new Error("Tree children instance mismatch");
       if (message.type === "tree-ancestors-result" && message.path.some(item => !item.elementId.startsWith(`${snapshot.instanceId}:`))) throw new Error("Tree ancestors instance mismatch");
+      if (message.type === "tree-update" && message.levels.flatMap(level => [level.parentElementId, ...level.children.map(item => item.elementId)]).some(id => id !== null && !id.startsWith(`${snapshot.instanceId}:`))) throw new Error("Tree update instance mismatch");
+      if (message.type === "tree-search-result" && message.paths.flat().some(item => !item.elementId.startsWith(`${snapshot.instanceId}:`))) throw new Error("Tree search instance mismatch");
       intents.receive(screen.id, message);
     }
   }

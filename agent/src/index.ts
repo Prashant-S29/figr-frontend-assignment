@@ -1,4 +1,4 @@
-// Coordinates bootstrap, private commands, mutation reconciliation, tracked geometry and page errors; DOM inspection stays in the agent and selection stays in the host.
+// Coordinates private commands, reconciliation, live tree/search, tracked geometry and page errors; DOM inspection stays in the agent and selection stays in the host.
 import { isConnect, isHostMessage, type AgentMessage } from "../../shared/protocol";
 import { native } from "./native";
 import { createOverlay } from "./overlay";
@@ -11,6 +11,8 @@ function start(): void {
   const instanceId = native.randomUUID();
   let port: MessagePort | null = null;
   const pendingErrors: AgentMessage[] = [];
+  let watchedParents = new Map<string | null, string>();
+  let search: { requestId: number; query: string; serialized: string } | null = null;
 
   /** Serializes an agent failure without throwing into the page, even if its connection is already gone. */
   function failure(error: unknown): void {
@@ -49,8 +51,32 @@ function start(): void {
     send({ type: "reconcile", targets: [...result.targets], goneElementIds: [...result.goneElementIds] });
   }
 
-  /** Re-hit-tests a stationary Select pointer only after identity reconciliation has completed. */
-  function mutationHover(): void { overlay?.refreshHover(); }
+  /** Publishes changed loaded child levels after reconciliation; no unloaded branches are scanned by subscriptions. */
+  function updateTree(): void {
+    const levels = [];
+    for (const [parentElementId, previous] of watchedParents) {
+      const children = identity.treeChildren(parentElementId);
+      const serialized = JSON.stringify(children);
+      if (serialized === previous) continue;
+      watchedParents.set(parentElementId, serialized);
+      levels.push({ parentElementId, children });
+    }
+    if (levels.length) send({ type: "tree-update", levels });
+    updateSearch();
+  }
+
+  /** Keeps the current correlated search derived from live mutations, stopping full-tree reads as soon as it clears. */
+  function updateSearch(): void {
+    if (!search) return;
+    const paths = identity.treeSearch(search.query);
+    const serialized = JSON.stringify(paths);
+    if (serialized === search.serialized) return;
+    search.serialized = serialized;
+    send({ type: "tree-search-result", requestId: search.requestId, paths });
+  }
+
+  /** Updates subscribed tree/search views and stationary hover only after identity reconciliation has completed. */
+  function mutationHover(): void { updateTree(); overlay?.refreshHover(); }
 
   identity.observe(reconciled, mutationHover, failure);
 
@@ -73,6 +99,14 @@ function start(): void {
     } else if (message.type === "tree-ancestors") {
       if (!message.elementId.startsWith(`${instanceId}:`)) throw new Error("Tree target instance mismatch");
       send({ type: "tree-ancestors-result", requestId: message.requestId, path: identity.treeAncestors(message.elementId) });
+    } else if (message.type === "tree-watch") {
+      if (message.parentElementIds.some(id => id !== null && !id.startsWith(`${instanceId}:`))) throw new Error("Tree watch instance mismatch");
+      watchedParents = new Map(message.parentElementIds.map(id => [id, watchedParents.get(id) ?? ""]));
+      updateTree();
+    } else if (message.type === "tree-search") {
+      search = message.query ? { requestId: message.requestId, query: message.query, serialized: "" } : null;
+      if (search) updateSearch();
+      else send({ type: "tree-search-result", requestId: message.requestId, paths: [] });
     } else {
       if (!message.elementId.startsWith(`${instanceId}:`)) throw new Error("Scroll target instance mismatch");
       identity.scrollElement(message.elementId);
@@ -86,6 +120,8 @@ function start(): void {
     if (!isConnect(input.data) || input.data.instanceId !== instanceId || input.ports.length !== 1) throw new Error("Invalid agent bootstrap");
     if (port) native.portClose.call(port);
     geometry.reset();
+    watchedParents.clear();
+    search = null;
     port = input.ports[0];
     const connection = port;
     /** Ignores queued commands from a replaced connection rather than changing the current document mode. */

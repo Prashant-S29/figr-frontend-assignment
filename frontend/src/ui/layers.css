@@ -1,7 +1,9 @@
 /* Styles the fixed-width, fixed-row-height Layers tree and row-local failure surfaces; tree state and scrolling decisions remain store-owned. */
-.layers { flex: 0 0 300px; min-width: 0; overflow: auto; border-right: 1px solid #cdd5df; background: #fff; }
+.layers { flex: 0 0 300px; min-width: 0; overflow: auto; overflow-anchor: none; border-right: 1px solid #cdd5df; background: #fff; }
 .layers > h2 { position: sticky; top: 0; z-index: 1; margin: 0; padding: 16px; background: #fff; border-bottom: 1px solid #eef1f4; font-size: 16px; }
 .layers > p { margin: 16px; color: #667085; }
+.layers-search-label { display: block; position: sticky; top: 52px; z-index: 1; padding: 8px 16px; background: #fff; font-size: 12px; }
+.layers-search-label input { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; padding: 6px; }
 .layers-tree { min-height: 100%; outline: none; }
 .layers-row { display: flex; align-items: center; height: 32px; min-width: max-content; padding-right: 8px; white-space: nowrap; }
 .layers-row.is-hovered { background: #eef4ff; }

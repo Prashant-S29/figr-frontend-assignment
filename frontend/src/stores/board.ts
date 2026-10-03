@@ -103,7 +103,7 @@ export function createBoard(region: FailureRegion, dev: boolean) {
       selection.navigationResult(screenId, message.requestId, message.target);
     } else if (message.type === "reconcile") {
       selection.reconcile(screenId, message.targets, message.goneElementIds);
-    } else if (message.type === "tree-children-result" || message.type === "tree-ancestors-result") {
+    } else if (message.type === "tree-children-result" || message.type === "tree-ancestors-result" || message.type === "tree-update" || message.type === "tree-search-result") {
       layers.receive(screenId, message);
     } else if (message.type === "key") {
       shortcut(message.key, message.editable, message.ctrlKey || message.metaKey || message.altKey, message.shiftKey);
@@ -157,6 +157,7 @@ export function createBoard(region: FailureRegion, dev: boolean) {
     dragging = false;
     viewport.reset();
     selection.reset();
+    layers.reset();
     update({ ...snapshot, previews: [], loading: true, renderError: null });
     guard(region.target, load)();
   }

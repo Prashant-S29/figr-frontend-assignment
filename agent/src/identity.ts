@@ -147,6 +147,20 @@ export function createIdentity(instanceId: string) {
     return path.reverse().map(describeTree);
   }
 
+  /** Searches every body descendant on demand, exposing only matching paths, never changing host expansion. */
+  function treeSearch(query: string): TreeNode[][] {
+    if (!query) return [];
+    const needle = query.toLowerCase();
+    const paths: TreeNode[][] = [];
+    /** Visits unloaded branches too; only matches need serialized ancestry and minted identities. */
+    function visit(element: Element): void {
+      if (name(element).toLowerCase().includes(needle)) paths.push(treeAncestors(describe(element)!.elementId));
+      for (const child of Array.from(element.children)) visit(child);
+    }
+    for (const element of Array.from(document.body?.children ?? [])) visit(element);
+    return paths;
+  }
+
   /** Scrolls only the inspected document's nested containers and viewport to the current identity. */
   function scrollElement(elementId: string): void {
     const element = lookup(elementId);
@@ -249,6 +263,6 @@ export function createIdentity(instanceId: string) {
     native.observeMutations.call(observer, document, { childList: true, subtree: true, attributes: true, characterData: true });
   }
 
-  return { describe, lookup, navigate, treeChildren, treeAncestors, scrollElement, observe };
+  return { describe, lookup, navigate, treeChildren, treeAncestors, treeSearch, scrollElement, observe };
 }
 export type Identity = ReturnType<typeof createIdentity>;
