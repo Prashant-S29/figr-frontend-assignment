@@ -1,4 +1,4 @@
-// Coordinates bootstrap, private commands, tracked geometry and page errors; DOM inspection stays in the agent and selection stays in the host.
+// Coordinates bootstrap, private commands, mutation reconciliation, tracked geometry and page errors; DOM inspection stays in the agent and selection stays in the host.
 import { isConnect, isHostMessage, type AgentMessage } from "../../shared/protocol";
 import { native } from "./native";
 import { createOverlay } from "./overlay";
@@ -43,6 +43,16 @@ function start(): void {
   const geometry = createGeometry(identity, send, failure);
   let overlay: ReturnType<typeof createOverlay>;
   try { overlay = createOverlay(identity, send, protect); } catch (error) { failure(error); }
+
+  /** Publishes only uniquely rebound or proven-gone exposed identities from one mutation batch. */
+  function reconciled(result: Parameters<Parameters<typeof identity.observe>[0]>[0]): void {
+    send({ type: "reconcile", targets: [...result.targets], goneElementIds: [...result.goneElementIds] });
+  }
+
+  /** Re-hit-tests a stationary Select pointer only after identity reconciliation has completed. */
+  function mutationHover(): void { overlay?.refreshHover(); }
+
+  identity.observe(reconciled, mutationHover, failure);
 
   /** Validates commands and current-document identities before mode, measurements, traversal or liveness responses. */
   function command(event: Event): void {

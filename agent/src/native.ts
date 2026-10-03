@@ -11,6 +11,8 @@ export const native = {
   rect: Element.prototype.getBoundingClientRect,
   WeakRef,
   weakDeref: WeakRef.prototype.deref as (this: WeakRef<Element>) => Element | undefined,
+  MutationObserver,
+  observeMutations: MutationObserver.prototype.observe,
   addListener: EventTarget.prototype.addEventListener,
   appendChild: Node.prototype.appendChild,
   attachShadow: Element.prototype.attachShadow,

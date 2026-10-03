@@ -1,4 +1,4 @@
-// Validates private inspection, tracked geometry, traversal and liveness traffic; DOM references and host-owned selection never cross here.
+// Validates private inspection, identity reconciliation, tracked geometry, traversal and liveness traffic; DOM references and host-owned selection never cross here.
 export type Mode = "select" | "interact";
 export interface Target { elementId: string; name: string }
 export interface Rect { x: number; y: number; width: number; height: number }
@@ -22,7 +22,8 @@ export type AgentMessage =
   | { type: "agent-error"; message: string }
   | { type: "page-error"; message: string }
   | { type: "geometry"; revision: number; targets: Geometry[] }
-  | { type: "navigate-result"; requestId: number; target: Target | null };
+  | { type: "navigate-result"; requestId: number; target: Target | null }
+  | { type: "reconcile"; targets: Target[]; goneElementIds: string[] };
 
 /** Rejects non-object wire values before any field is accessed. */
 function record(value: unknown): value is Record<string, unknown> {
@@ -113,6 +114,12 @@ export function isAgentMessage(value: unknown): value is AgentMessage {
     case "pong": return request(value.requestId);
     case "geometry": return request(value.revision) && Array.isArray(value.targets) && value.targets.every(geometry) && new Set((value.targets as Geometry[]).map(item => item.elementId)).size === value.targets.length;
     case "navigate-result": return request(value.requestId) && target(value.target);
+    case "reconcile": {
+      if (!Array.isArray(value.targets) || !value.targets.every(item => target(item) && item !== null) || !Array.isArray(value.goneElementIds) || !value.goneElementIds.every(elementId)) return false;
+      const targetIds = (value.targets as Target[]).map(item => item.elementId);
+      return new Set(targetIds).size === targetIds.length && new Set(value.goneElementIds).size === value.goneElementIds.length
+        && value.goneElementIds.every(id => !targetIds.includes(id));
+    }
     case "hover": return target(value.target);
     case "select": return target(value.target) && typeof value.shiftKey === "boolean";
     case "agent-error":

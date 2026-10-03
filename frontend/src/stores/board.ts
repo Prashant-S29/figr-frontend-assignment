@@ -83,6 +83,8 @@ export function createBoard(region: FailureRegion, dev: boolean) {
       selection.receiveGeometry(screenId, message.revision, message.targets);
     } else if (message.type === "navigate-result") {
       selection.navigationResult(screenId, message.requestId, message.target);
+    } else if (message.type === "reconcile") {
+      selection.reconcile(screenId, message.targets, message.goneElementIds);
     } else if (message.type === "key") {
       shortcut(message.key, message.editable, message.ctrlKey || message.metaKey || message.altKey, message.shiftKey);
     } else if (message.type === "zoom") {

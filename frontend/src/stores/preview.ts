@@ -93,6 +93,7 @@ export function createPreview(screen: Screen, parent: Scope, intents: PreviewInt
     } else {
       if ((message.type === "hover" || message.type === "select" || message.type === "navigate-result") && message.target && !message.target.elementId.startsWith(`${snapshot.instanceId}:`)) throw new Error("Target instance mismatch");
       if (message.type === "geometry" && message.targets.some(item => !item.elementId.startsWith(`${snapshot.instanceId}:`))) throw new Error("Geometry instance mismatch");
+      if (message.type === "reconcile" && [...message.targets.map(item => item.elementId), ...message.goneElementIds].some(id => !id.startsWith(`${snapshot.instanceId}:`))) throw new Error("Reconciliation instance mismatch");
       intents.receive(screen.id, message);
     }
   }

@@ -1,4 +1,4 @@
-// Owns Select-mode pointer isolation, hit-testing and wheel emulation; host selection and reconciliation are not owned here.
+// Owns Select-mode pointer isolation, hit-testing, stationary-pointer refresh and wheel emulation; host selection and identity reconciliation are not owned here.
 import type { AgentMessage, Mode } from "../../shared/protocol";
 import type { Identity } from "./identity";
 import { native } from "./native";
@@ -10,6 +10,7 @@ export function createOverlay(identity: Identity, send: (message: AgentMessage) 
   const surface = native.createElement("div");
   let mode: Mode = "select";
   let lastHover: string | null = null;
+  let lastPoint: { x: number; y: number } | null = null;
 
   native.setStyle.call(host.style, "all", "initial", "important");
   native.setStyle.call(host.style, "position", "fixed", "important");
@@ -48,12 +49,16 @@ export function createOverlay(identity: Identity, send: (message: AgentMessage) 
     const input = event as MouseEvent;
     // Pointer default cancellation blocks iframe focus; focus only our neutral surface, never a page control.
     if (event.type === "pointerdown" && input.button === 0) native.focusElement.call(surface, { preventScroll: true });
-    if (event.type === "pointermove" || event.type === "pointerover") hover(hit(input.clientX, input.clientY));
+    if (event.type === "pointermove" || event.type === "pointerover") {
+      lastPoint = { x: input.clientX, y: input.clientY };
+      hover(hit(input.clientX, input.clientY));
+    }
     if (event.type === "click" && input.button === 0) send({ type: "select", target: identity.describe(hit(input.clientX, input.clientY)), shiftKey: input.shiftKey });
   }
 
   /** Clears hover when the pointer exits the preview without synthesizing page events. */
   function leave(): void {
+    lastPoint = null;
     hover(null);
   }
 
@@ -89,6 +94,7 @@ export function createOverlay(identity: Identity, send: (message: AgentMessage) 
       send({ type: "zoom", x: input.clientX, y: input.clientY, deltaX: input.deltaX, deltaY: input.deltaY, deltaMode: input.deltaMode });
     } else if (mode === "select") {
       swallow(input);
+      lastPoint = { x: input.clientX, y: input.clientY };
       scrollPage(input);
     }
   }
@@ -105,12 +111,18 @@ export function createOverlay(identity: Identity, send: (message: AgentMessage) 
     send({ type: "key", key: input.key, code: input.code, shiftKey: input.shiftKey, ctrlKey: input.ctrlKey, metaKey: input.metaKey, altKey: input.altKey, editable, repeat: input.repeat });
   }
 
-  /** Resets cached hover after host movement so the same element can emit a fresh intent. */
-  function clearHover(): void { hover(null); }
+  /** Re-hit-tests the last Select pointer after page mutations without synthesizing a page event. */
+  function refreshHover(): void {
+    if (mode === "select" && lastPoint) hover(hit(lastPoint.x, lastPoint.y));
+  }
+
+  /** Resets cached hover and pointer position after host movement until genuine preview input resumes. */
+  function clearHover(): void { lastPoint = null; hover(null); }
 
   /** Switches only the agent overlay; the host retains all selection and product state. */
   function setMode(next: Mode): void {
     mode = next;
+    lastPoint = null;
     native.setStyle.call(host.style, "display", next === "select" ? "block" : "none", "important");
     hover(null);
   }
@@ -122,5 +134,5 @@ export function createOverlay(identity: Identity, send: (message: AgentMessage) 
   native.addListener.call(surface, "pointerleave", protect(leave));
   native.addListener.call(window, "wheel", protect(wheel), capture);
   native.addListener.call(window, "keydown", protect(key), capture);
-  return { setMode, clearHover };
+  return { setMode, clearHover, refreshHover };
 }

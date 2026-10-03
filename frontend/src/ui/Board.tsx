@@ -32,6 +32,7 @@ export function Board({ board }: { board: BoardStore }) {
       element.dataset.selectionScreen = inspection.screenId ?? "";
       element.dataset.selectedCount = String(inspection.targets.length);
       element.dataset.selectedIds = JSON.stringify(inspection.targets.map(item => item.elementId));
+      element.dataset.selectionMissing = String(inspection.missing);
       element.dataset.activeScreen = inspection.activeScreenId ?? "";
     };
     const protect = <E extends Event,>(work: (event: E) => void) => (event: E) => guard(board.region.target, work)(event);

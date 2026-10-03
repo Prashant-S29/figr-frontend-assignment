@@ -1,4 +1,4 @@
-// Owns global hover, ordered single-preview selection and rAF-batched geometry; agents own nodes and React owns no shared inspection state.
+// Owns global hover, ordered single-preview selection, disappearance state and rAF-batched geometry; agents own nodes and React owns no shared inspection state.
 import type { Direction, Geometry, HostMessage, Target } from "../../../shared/protocol";
 import type { FailureTarget } from "../core/fail";
 import { scopedFrame } from "../core/schedule";
@@ -9,6 +9,7 @@ export interface SelectionSnapshot {
   readonly hover: Hover | null;
   readonly screenId: string | null;
   readonly targets: readonly Target[];
+  readonly missing: boolean;
   readonly geometry: ReadonlyMap<string, ReadonlyMap<string, Geometry>>;
   readonly drawFault: { readonly screenId: string; readonly error: Error } | null;
 }
@@ -16,7 +17,7 @@ interface Tracking { revision: number; ids: readonly string[] }
 
 /** Creates host-owned inspection state with revisioned tracking and serialized keyboard traversal, never sibling-index matching. */
 export function createSelection(target: () => FailureTarget, send: (screenId: string, message: HostMessage) => void) {
-  let snapshot: SelectionSnapshot = { activeScreenId: null, hover: null, screenId: null, targets: [], geometry: new Map(), drawFault: null };
+  let snapshot: SelectionSnapshot = { activeScreenId: null, hover: null, screenId: null, targets: [], missing: false, geometry: new Map(), drawFault: null };
   const listeners = new Set<() => void>();
   const tracking = new Map<string, Tracking>();
   const arrivals = new Map<string, { revision: number; targets: readonly Geometry[] }>();
@@ -76,14 +77,14 @@ export function createSelection(target: () => FailureTarget, send: (screenId: st
       targets = snapshot.targets.some(item => item.elementId === value.elementId)
         ? snapshot.targets.filter(item => item.elementId !== value.elementId) : [...snapshot.targets, value];
     }
-    snapshot = { ...snapshot, activeScreenId: screenId, screenId: targets.length ? screenId : null, targets };
+    snapshot = { ...snapshot, activeScreenId: screenId, screenId: targets.length ? screenId : null, targets, missing: false };
     synchronize();
     notify();
   }
   /** Clears selection while preserving the last active preview and any genuine pointer hover. */
   function clear(): void {
     cancelNavigation();
-    snapshot = { ...snapshot, screenId: null, targets: [] };
+    snapshot = { ...snapshot, screenId: null, targets: [], missing: false };
     synchronize();
     notify();
   }
@@ -101,11 +102,41 @@ export function createSelection(target: () => FailureTarget, send: (screenId: st
     if (!pending || pending.screenId !== screenId || pending.requestId !== correlation) return;
     pending = null;
     if (value) {
-      snapshot = { ...snapshot, screenId, targets: [value] };
+      snapshot = { ...snapshot, screenId, targets: [value], missing: false };
       synchronize();
       notify();
     }
     advance();
+  }
+  /** Applies only current hovered/selected reconciliation, pruning proven-gone ids without guessing replacements. */
+  function reconcile(screenId: string, survivors: readonly Target[], goneElementIds: readonly string[]): void {
+    const survivorById = new Map(survivors.map(item => [item.elementId, item]));
+    const gone = new Set(goneElementIds);
+    const hoverAffected = snapshot.hover?.screenId === screenId
+      && (gone.has(snapshot.hover.target.elementId) || survivorById.has(snapshot.hover.target.elementId));
+    const selectionAffected = snapshot.screenId === screenId
+      && snapshot.targets.some(item => gone.has(item.elementId) || survivorById.has(item.elementId));
+    if (!hoverAffected && !selectionAffected) return;
+    const hover = snapshot.hover?.screenId === screenId
+      ? gone.has(snapshot.hover.target.elementId) ? null : { screenId, target: survivorById.get(snapshot.hover.target.elementId) ?? snapshot.hover.target }
+      : snapshot.hover;
+    let targets = snapshot.targets;
+    let selectedScreenId = snapshot.screenId;
+    let missing = snapshot.missing;
+    if (snapshot.screenId === screenId) {
+      const previousLength = snapshot.targets.length;
+      targets = snapshot.targets
+        .filter(item => !gone.has(item.elementId))
+        .map(item => survivorById.get(item.elementId) ?? item);
+      if (previousLength && !targets.length) {
+        selectedScreenId = null;
+        missing = true;
+      }
+      if (targets.length !== previousLength) cancelNavigation();
+    }
+    snapshot = { ...snapshot, hover, screenId: selectedScreenId, targets, missing };
+    synchronize();
+    notify();
   }
   /** Publishes only the latest still-tracked measurement per screen at most once per host animation frame. */
   function flush(): void {
@@ -137,6 +168,7 @@ export function createSelection(target: () => FailureTarget, send: (screenId: st
       hover: snapshot.hover?.screenId === screenId ? null : snapshot.hover,
       screenId: snapshot.screenId === screenId ? null : snapshot.screenId,
       targets: snapshot.screenId === screenId ? [] : snapshot.targets,
+      missing: snapshot.screenId === screenId ? false : snapshot.missing,
       drawFault: snapshot.drawFault?.screenId === screenId ? null : snapshot.drawFault };
     notify();
   }
@@ -153,7 +185,7 @@ export function createSelection(target: () => FailureTarget, send: (screenId: st
     cancelNavigation();
     tracking.clear();
     arrivals.clear();
-    snapshot = { activeScreenId: null, hover: null, screenId: null, targets: [], geometry: new Map(), drawFault: null };
+    snapshot = { activeScreenId: null, hover: null, screenId: null, targets: [], missing: false, geometry: new Map(), drawFault: null };
     notify();
   }
   /** Reads a stable snapshot; DOM nodes never appear in it. */
@@ -166,6 +198,6 @@ export function createSelection(target: () => FailureTarget, send: (screenId: st
   }
   /** Disposes pending drawing work and readers without publishing into a removed host. */
   function dispose(): void { reset(); listeners.clear(); }
-  return { getSnapshot, subscribe, hover, clearHover, select, clear, navigate, navigationResult, cancelNavigation, receiveGeometry, forget, injectDrawFault, reset, dispose };
+  return { getSnapshot, subscribe, hover, clearHover, select, clear, navigate, navigationResult, cancelNavigation, reconcile, receiveGeometry, forget, injectDrawFault, reset, dispose };
 }
 export type SelectionStore = ReturnType<typeof createSelection>;

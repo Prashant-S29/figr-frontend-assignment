@@ -3,8 +3,8 @@
 Update at the start and end of every milestone, and whenever a decision, gate or limitation appears. Keep entries short and factual.
 
 ## Now
-- **Current milestone:** M5 (not started); M0–M4 are done
-- **Next action:** implement unique per-parent identity reconciliation, gone-selection pruning and stationary-pointer hover re-resolution; verify page 4 survival and navigation
+- **Current milestone:** M6 (not started); M0–M5 are done
+- **Next action:** implement Inspector Live and Details sections with mixed values, validated latest-selection details and isolated retry
 
 ## Milestones
 | ID | Name | Status | Verified (what, when) |
@@ -14,7 +14,7 @@ Update at the start and end of every milestone, and whenever a decision, gate or
 | M2 | Failure core | done | 2026-10-03: 20 unit tests; typecheck/build pass; Chrome/Firefox core probes (2 passed, 56.1s) and M1 regression (2 passed, 2.9m). Vite dev visibility/Retry verified in Chrome. Commit `513632d`; agent regeneration leaves git clean. |
 | M3 | Board and previews | done | 2026-10-03: 24 connections, pan/zoom, scroll/mode/navigation, page-error reporting and isolated failures passed Chrome/Firefox (2 probes, 4.5m); typecheck/build + 20 unit tests passed. Dev-mode visibility and handler/draw/timer recovery verified in Chrome. Commit `1f6f881`; agent regeneration leaves git clean. |
 | M4 | Hover and selection | done | 2026-10-03: full Chrome/Firefox M4 gate (2 passed, 4.6m), M3 regression (2 passed, 3.2m), typecheck/build + 20 unit checks. Vite dev selection/Tab/I/V and preview-only draw failure/Retry verified in Chrome. Commit `e838dab`; agent regeneration leaves git clean. |
-| M5 | Identity and re-render survival | not started | |
+| M5 | Identity and re-render survival | done | 2026-10-03: 27 unit checks and final typecheck/build passed; Chrome/Firefox M5 gate passed (`2 passed`, 1.8m): keyed and un-keyed Page 4 selections survived five rebuilds with stable ids/geometry, cap removal became missing without jumping, stationary hover re-resolved, navigation cleared only that preview while hash navigation retained identity. M4 gate and M3 regression also passed both browsers. |
 | M6 | Inspector | not started | |
 | M7 | Layers: tree and sync | not started | |
 | M8 | Layers: persistence, live updates, search | not started | |
@@ -46,16 +46,16 @@ Append only. Anything that changes a PRD `D*` item, the protocol, or adds a depe
 
 | 11 | 2026-10-03 | Owner approved host `track { revision, elementIds }` and `navigate { requestId, elementId, direction }`; agent `geometry { revision, targets: [{ elementId, name, box, clip }] }` and `navigate-result { requestId, target }` | D6 needs tracked-only measurements and R3.5 needs agent-owned DOM traversal; revisions/correlation suppress replaced work. Box/clip are iframe-local finite rects or null for disconnected/invisible elements | Host DOM inspection; agent-owned selection; uncorrelated replies; scaling outline borders with the world | M4 |
 | 12 | 2026-10-03 | Owner approved Enter/Shift+Enter/Tab/Shift+Tab change viewer selection only in Select; Interact keeps native keyboard behavior. Escape clears viewer selection in either mode without cancelling native Interact handling | R3 keyboard behavior must coexist with R1.5's normal Interact page and retained hidden selection | Changing hidden selection while users tab/type in Interact; cancelling native Interact keys | M4 |
+| 13 | 2026-10-03 | Owner approved agent `reconcile { targets, goneElementIds }` batching uniquely rebound exposed identities and identities proven gone after a mutation | D5/R3.7 require the host to refresh surviving target metadata, prune only proven-gone selection and distinguish disappearance from explicit clearing; batching preserves mutation ordering | Inferring disappearance from null geometry; one message per identity; host-side DOM matching | M5 |
 
 ## Known limitations
 Feeds the README "where this breaks". Add as discovered: what breaks, when, and why.
 
-_No unresolved M1–M4 gate defects found in the completed checks. Full product failure-matrix verification remains M9; formal performance verification remains M10._
+_No unresolved M1–M5 gate defects found in the completed checks. Full product failure-matrix verification remains M9; formal performance verification remains M10._
 
 - Native Interact scrolling follows the browser's gesture rules: Firefox can latch a wheel transaction to the nested container for 1500ms, so outward chaining at its boundary requires a new gesture. Select-mode emulation consumes the remainder immediately. This is native browser behavior, not an overlay fallback.
 
 - Chrome quantizes native iframe-local wheel coordinates to CSS pixels. Pointer-centred zoom uses that native coordinate; at fractional transforms it can differ from an unrounded CDP tooling coordinate by up to one iframe-local pixel. Browser probes verify the actual native anchor and bound that rounding, rather than assuming fractional CDP input survives unchanged.
-- Pending M5 (not an M4 completion claim): identity is reference-only. Rebuilt/detached selected nodes become invisible but are not yet reconciled or pruned from the host selection; stationary-pointer hover re-resolution after mutations is also deferred to M5.
 
 ## Open questions for the owner
 _None._
@@ -81,6 +81,8 @@ One line per working session: what changed, what is next.
 - 2026-10-03: M4 started. Reviewing protocol, store ownership and outline geometry before implementation. Owner approved geometry/navigation wire additions and the keyboard-mode clarification; reconciliation and inspector/layers remain later milestones.
 
 - 2026-10-03: M4 completed. Added reference identity/traversal, tracked-only geometry, host-owned selection and screen-space outlines. Final M4 Chrome/Firefox gate and M3 regression pass, including late drawing cancellation after navigation; Vite dev smoke and typecheck/build/20 unit checks pass. Reconciliation and inspector/layers remain deferred. Next: M5 only.
+- 2026-10-03: M5 started. Implementing unique per-parent identity reconciliation, gone-selection pruning, stationary-pointer hover re-resolution and navigation clearing only; inspector/layers remain deferred.
+- 2026-10-03: M5 completed. Added mutation-driven top-down identity reconciliation, conservative ambiguity handling, batched survivor/gone traffic, host disappearance state and stationary-pointer re-hit-testing. Final Chrome/Firefox gate, M4/M3 regressions, typecheck/build and 27 unit checks pass. Next: M6 only.
 
 ## M0 verification evidence
 
@@ -162,3 +164,15 @@ One line per working session: what changed, what is next.
 - Artifacts: `/tmp/figr-m4-chrome-agent-browser.json`, `/tmp/figr-m4-firefox.json`, matching screenshots, `/tmp/figr-m4-final-v3.log`, `/tmp/figr-m4-regression-final-v2.log`, `/tmp/figr-m4-dev.png` and production/dev logs. Typecheck/build and **20 unit tests** pass. No fixed server/data/page HTML or dependency changes; regenerated `backend/pages/agent.js` is included.
 - Committed implementation/build: `e838dab`. `npm run build:agent` afterwards produced no git changes. Final typecheck/build/20 unit tests and protected-input checks pass; all seven HTML pages match baseline after removing their one approved tag. Production/development servers and all M4 verification browser sessions were stopped.
 - Scope: M4 is complete. M5 reference reconciliation/gone pruning, M6 inspector, M7–M8 layers, M9 full failure matrix and M10 formal performance/submission E2E verification were not started.
+
+## M5 verification evidence
+
+- Identity: `identity.ts` stores weak bindings plus ancestor-path evidence. Mutation batches preserve connected references first, then reconcile detached children per parent from the body downward using unique `data-key`, id, strict tag/attributes/text signature and digit-relaxed signature evidence. Ambiguity at any matching stage is terminal rather than falling through to weaker evidence; sibling position is never evidence. Proven-gone records are removed.
+- Protocol/state: owner-approved `reconcile { targets, goneElementIds }` batches only exposed rebound/gone identities. Shared and preview boundaries validate shape, uniqueness, disjoint sets and current instance prefixes. The host refreshes surviving targets, prunes gone hover/selection, cancels affected traversal and sets `missing` only when mutation removes the last selection. Explicit clear/reselection and document replacement reset missing state.
+- Hover/navigation: the overlay remembers the latest genuine Select pointer and re-hit-tests it after reconciliation, but host pan/zoom, leave and mode changes clear that point. A new authenticated document hello clears only that screen's selection/geometry while retaining the active preview; hash changes keep the instance and selection.
+- Unit command: `npm test` reported **27 passed** without a browser. Seven reconciliation checks prove ordered key/id/strict/relaxed matching and reject ambiguous current, previous and stronger-key evidence; the existing 20 failure-core checks remain green.
+- Production browser gate: `npx playwright test --config /tmp/figr-m5-check/playwright.config.ts` reported **2 passed (1.8m)** on Chrome 153 driven through agent-browser/CDP and Playwright Firefox 155. These disposable probes remain outside the five M10 product E2E tests.
+- Both browsers: one keyed and one un-keyed Page 4 row retained exactly the same ids and correctly glued borders through five natural two-second whole-list rebuilds. At the 25-row cap, selecting the oldest row resulted in zero selection, no outline and `missing: true` when it dropped; it never jumped. A stationary pointer over the moving feed re-resolved to the element newly underneath it.
+- Both browsers: Interact navigation from Page 2 to Page 1 replaced only `scr-02`'s instance, cleared its selection without setting missing, retained board viewport/active preview and left another preview's instance unchanged; all 24 remained ready and Select worked on the new document. A Page 1 hash link retained the instance and hidden selection across Interact→Select.
+- Regression: the complete M4 Chrome/Firefox hover/selection gate passed (**2 passed, 5.1m**) and the M3 product/failure regression passed (**2 passed, 4.4m**). The first disposable M5 probe exposed test-only races from resolving a live feed locator before slow CLI input and referenced a nonexistent hash; coordinate-accurate immediate native row input and the page's real `#pricing` link corrected the probe without changing product code or weakening assertions.
+- Final `npm run build` (including typecheck and agent build), standalone agent regeneration and protected-input checks pass. `backend/server.js` and `backend/data/` remain unchanged; stripping the approved first-head agent tag restores all seven page HTML files exactly to baseline. Inspector/layers and the formal failure matrix remain M6–M9.

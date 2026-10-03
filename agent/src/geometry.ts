@@ -43,7 +43,7 @@ export function createGeometry(identity: Identity, send: (message: AgentMessage)
   let frameId: number | null = null;
   let previous = "";
 
-  /** Measures one original identity without attempting rebuilt-node reconciliation or substituting a sibling. */
+  /** Measures the current uniquely proven binding without substituting an ambiguous sibling. */
   function measure(elementId: string): Geometry {
     const element = identity.lookup(elementId);
     if (!element) return { elementId, name: "", box: null, clip: null };
