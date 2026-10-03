@@ -3,8 +3,8 @@
 Update at the start and end of every milestone, and whenever a decision, gate or limitation appears. Keep entries short and factual.
 
 ## Now
-- **Current milestone:** M9 (in progress); M0–M8 are done
-- **Next action:** commit the verified M9 matrix and confirm clean deterministic agent regeneration, then close M9
+- **Current milestone:** M10 (not started); M0–M9 are done
+- **Next action:** implement exactly the five PRD §8 product E2E checks, then perform the full manual/performance verification (M10 only)
 
 ## Milestones
 | ID | Name | Status | Verified (what, when) |
@@ -18,7 +18,7 @@ Update at the start and end of every milestone, and whenever a decision, gate or
 | M6 | Inspector | done | 2026-10-03: final typecheck/build and 27 unit checks passed; Chrome/Firefox M6 gate passed (`2 passed`, 1.1m): Live updates/safe text, multi Mixed values, latest-only Details, no-key/404, malformed/fail isolation and Retry, render boundary, missing state. M5, M4 and M3 browser regressions passed both browsers. |
 | M7 | Layers: tree and sync | done | 2026-10-03: final typecheck/build and 30 unit checks passed; Chrome/Firefox M7 gate passed (`2 passed`, 34.2s): lazy rows, one in-flight request, 3s row timeout/Retry, bidirectional sync, ~30-level Page 5 reveal, page-only scrolling, arrow navigation and isolated row/whole-Layers failures. M6–M3 browser regressions passed both browsers. | |
 | M8 | Layers: persistence, live updates, search | done | 2026-10-03: final typecheck/build and 34 unit checks pass; M8 acceptance/lifecycle probes and M7–M3 regressions pass Chrome/Firefox; Chrome development smoke passes. Implementation `81c05b6`; agent regeneration leaves git clean. |
-| M9 | Failure matrix | in progress | 2026-10-03: matrix passes Chrome/Firefox (72 expected reports each), latest expanded lifetime probes pass both, M8–M3 regressions pass both, development smoke and final typecheck/build/34 unit checks pass. Commit/clean-tree confirmation pending. |
+| M9 | Failure matrix | done | 2026-10-03: matrix passes Chrome/Firefox (72 expected reports each), latest expanded lifetime probes pass both, M8–M3 regressions pass both, development smoke and final typecheck/build/34 unit checks pass. Implementation `2065eb6`; agent regeneration leaves git clean. |
 | M10 | Verification and hardening | not started | |
 | M11 | Deliverables | not started | |
 
@@ -111,6 +111,8 @@ One line per working session: what changed, what is next.
 - 2026-10-03: M9 matrix passed both browsers (2 passed, 6.8m), ending at exactly 72 expected reports each; all six regions and real callback sources, armed failed Retries and four silent late/gone probes passed. Hidden-child/global-attribution probes also passed. Final audit added an abort check before dev handoff side effects so an already-resolved old body cannot clear/retry a newer generation; expanded lifetime probes pass. M8–M3 regressions passed; Firefox fixture navigation now uses a genuine Interact link, and a transient Chrome CLI mouse command was retried only by restarting the full unchanged M4 probe after doctor passed. Final matrix rerun and dev-mode smoke remain.
 
 - 2026-10-03: M9 verification finished. Final matrix passes both browsers at exactly 72 reports each; expanded lifetime probes prove hidden-child cancellation, stale global attribution, obsolete same-region bodies and armed child faults stay silent after teardown. M8–M3 regressions and Chrome dev smoke pass. Final typecheck/build/34 unit tests/protected-input checks pass; no agent/protocol/dependency edits. Preparing milestone commits and clean-tree confirmation.
+
+- 2026-10-03: M9 completed in `2065eb6`. Full regional/source/Retry matrix, stale/gone/hidden-child probes and all M8–M3 regressions pass Chrome/Firefox; Vite development smoke and final typecheck/build/34 unit checks pass. Regenerating the agent after commit leaves git clean. No protocol/dependency/protected-backend changes. Verification servers and owned browser sessions were stopped. Next: M10 only.
 
 ## M0 verification evidence
 
@@ -264,3 +266,4 @@ One line per working session: what changed, what is next.
 - Browser regressions pass on both browsers: M8 acceptance **2 passed (1.8m)** and additional lifetimes **2 passed (48.0s)**, M7 **2 passed (49.1s)**, M6 **2 passed (1.1m)** plus final recheck **2 passed (1.3m)**, M5 **2 passed (1.8m)**, M4 **2 passed (5.1m)**, M3 **2 passed (4.3m)**. Firefox's fixture-only scripted navigation was replaced by a real Interact link with the original isolation/reset assertions retained. A Chrome CLI mouse command failed without a product assertion; doctor passed, and restarting the full unchanged probe passed. No test/assertion was weakened or skipped.
 - Development: `/tmp/figr-m9-check/dev.config.ts` passes **Chrome (1 passed, 57.4s)** at `/` without ?dev, serving /@vite/client. New trigger ids are present and unique. Real key/message and malformed Details faults isolate correctly; failed board Retry adds once; Inspector render and same-Error Retry add exactly one each under React development behaviour. Screenshot `/tmp/figr-m9-dev.png`; production screenshots `/tmp/figr-m9-chrome-agent-browser.png` and `/tmp/figr-m9-firefox.png`; logs `/tmp/figr-m9-*.log`.
 - Final explicit typecheck/build, **34 browser-free unit checks**, agent regeneration and `git diff --check` pass. `report()` still has only the one caller in `fail()`. Protected-input comparison verifies all seven HTML files equal baseline after removing the one approved script tag; server/data, agent/shared and package manifests/lockfile are unchanged from M8. All browser probes are disposable files under `/tmp/`; M10's five formal product E2E cases remain unimplemented.
+- Committed implementation: `2065eb6`. `npm run build:agent` after commit produced no git changes. Production/development verification servers were stopped. M9 is complete; formal submission E2E, full manual R-item verification and performance checks remain M10.
