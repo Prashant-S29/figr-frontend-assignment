@@ -3,8 +3,8 @@
 Update at the start and end of every milestone, and whenever a decision, gate or limitation appears. Keep entries short and factual.
 
 ## Now
-- **Current milestone:** M8 (in progress); M0–M7 are done
-- **Next action:** commit the verified M8 implementation, confirm deterministic agent regeneration and clean git status, then close M8
+- **Current milestone:** M9 (not started); M0–M8 are done
+- **Next action:** verify the complete R6 failure matrix and finish any missing dev triggers (M9 only)
 
 ## Milestones
 | ID | Name | Status | Verified (what, when) |
@@ -17,7 +17,7 @@ Update at the start and end of every milestone, and whenever a decision, gate or
 | M5 | Identity and re-render survival | done | 2026-10-03: 27 unit checks and final typecheck/build passed; Chrome/Firefox M5 gate passed (`2 passed`, 1.8m): keyed and un-keyed Page 4 selections survived five rebuilds with stable ids/geometry, cap removal became missing without jumping, stationary hover re-resolved, navigation cleared only that preview while hash navigation retained identity. M4 gate and M3 regression also passed both browsers. |
 | M6 | Inspector | done | 2026-10-03: final typecheck/build and 27 unit checks passed; Chrome/Firefox M6 gate passed (`2 passed`, 1.1m): Live updates/safe text, multi Mixed values, latest-only Details, no-key/404, malformed/fail isolation and Retry, render boundary, missing state. M5, M4 and M3 browser regressions passed both browsers. |
 | M7 | Layers: tree and sync | done | 2026-10-03: final typecheck/build and 30 unit checks passed; Chrome/Firefox M7 gate passed (`2 passed`, 34.2s): lazy rows, one in-flight request, 3s row timeout/Retry, bidirectional sync, ~30-level Page 5 reveal, page-only scrolling, arrow navigation and isolated row/whole-Layers failures. M6–M3 browser regressions passed both browsers. | |
-| M8 | Layers: persistence, live updates, search | in progress | 2026-10-03: final typecheck/build and 34 unit checks pass; M8 acceptance/lifecycle probes and M7–M3 regressions pass Chrome/Firefox; Chrome development smoke passes. Commit/clean-tree confirmation pending. |
+| M8 | Layers: persistence, live updates, search | done | 2026-10-03: final typecheck/build and 34 unit checks pass; M8 acceptance/lifecycle probes and M7–M3 regressions pass Chrome/Firefox; Chrome development smoke passes. Implementation `81c05b6`; agent regeneration leaves git clean. |
 | M9 | Failure matrix | not started | |
 | M10 | Verification and hardening | not started | |
 | M11 | Deliverables | not started | |
@@ -101,6 +101,8 @@ One line per working session: what changed, what is next.
 - 2026-10-03: M8 acceptance gate passed Chrome/Firefox (2 passed, 1.5m). M7 regression found a Chrome ordering defect: numeric restoration could outrun the native scroll event after selection reveal and reset its position. Selection scrolling now runs in layout and records the resulting numeric position synchronously; rerunning all gates/regressions. Disposable probe corrections fixed an ancestor-name expectation, Chrome CLI empty-fill behaviour and a live-feed selection/input race; no product assertions weakened.
 
 - 2026-10-03: Final M8 acceptance passed both browsers (2 passed, 1.4m), including search-only arrow expansion and literal restore through Retry. Additional lifecycle probes passed both (2 passed, 41.4s): late search replies silent, removed loading row cancels timeout/reply silently, inactive cached trees update, Interact tree stays live, inactive navigation resets only its cache, board reload drops memory. M7/M6 regressions pass. A disposable M5 hash probe needed to await its Select intent before snapshotting ids; remaining regressions and dev smoke continue.
+
+- 2026-10-03: M8 completed in `81c05b6`. Per-preview expansion/scroll, mutation-driven loaded-tree updates and whole-tree derived search pass Chrome/Firefox, all M7–M3 browser regressions pass, and Vite dev smoke/typecheck/build/34 unit checks pass. Regenerating the committed agent leaves git clean; protected backend/page inputs are unchanged. Verification servers and browser sessions were stopped. Next: M9 only.
 
 ## M0 verification evidence
 
@@ -231,3 +233,4 @@ One line per working session: what changed, what is next.
 - Regressions: M7 **2 passed (35.4s)**, M6 **2 passed (53.5s)**, M5 **2 passed (1.6m)**, M4 **2 passed (3.7m)** and M3 **2 passed (3.6m)**, all Chrome/Firefox. Probes remain outside `frontend/e2e/`; the five formal submission checks remain M10. Tooling corrections awaited real selection/mode delivery, reopened M3's required Chrome session, resolved Firefox's replaced frame, and closed the dev menu before native board input; assertions were not weakened.
 - Defects resolved: owner approved restoring the unexpectedly missing existing ready validator; Chrome regression then exposed a selection-scroll/native-scroll-event ordering race, fixed by synchronous layout capture. Search keyboard actions now change only the derived view, and clearing search invalidates pending reveal expansion. No unresolved M8 gate defect remains.
 - Final explicit typecheck/build, **34 browser-free unit checks**, agent regeneration, `git diff --check` and protected-input comparisons pass. Four new pure tree-state checks cover derived path order/independence, insertion with retained expansion, detached subtree pruning and same-batch reference-surviving moves. No dependency, fixed server/data or page HTML changes; the regenerated agent bundle is included. Local screenshots: `/tmp/figr-m8-chrome-agent-browser.png`, `/tmp/figr-m8-firefox.png`, `/tmp/figr-m8-dev.png`; logs are `/tmp/figr-m8-*.log`.
+- Committed implementation/build: `81c05b6`. `npm run build:agent` after commit produced no git changes. Production/development verification servers were stopped. M8 is complete; full failure-matrix verification remains M9, and formal E2E/performance/manual-product verification remains M10.
