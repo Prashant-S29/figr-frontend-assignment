@@ -1,4 +1,6 @@
-// Fetches and validates untrusted element Details responses; selection lifetime, retries and presentation belong to the inspector store.
+// Fetches and validates Details from the configured API; selection lifetime, retries and presentation belong to the inspector store.
+import { apiUrl } from "./url";
+
 export interface ElementDetails {
   readonly component: string;
   readonly description: string;
@@ -26,7 +28,7 @@ export async function fetchElementDetails(key: string, signal: AbortSignal, quer
   if (query.latency !== undefined) search.set("latency", String(query.latency));
   if (query.fail) search.set("fail", "1");
   const suffix = search.size ? `?${search}` : "";
-  const response = await fetch(`http://localhost:4000/elements/${encodeURIComponent(key)}${suffix}`, { signal });
+  const response = await fetch(apiUrl(`/elements/${encodeURIComponent(key)}${suffix}`), { signal });
   return readElementDetails(response);
 }
 

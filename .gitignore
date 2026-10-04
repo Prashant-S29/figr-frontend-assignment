@@ -3,4 +3,5 @@ node_modules/
 frontend/dist/
 playwright-report/
 test-results/
+.vercel/
 .DS_Store

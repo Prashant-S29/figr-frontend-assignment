@@ -1,0 +1,6 @@
+# Excludes local-only guides and verification artifacts from frontend uploads; Git publication is controlled separately.
+docs/
+node_modules/
+frontend/dist/
+playwright-report/
+test-results/
