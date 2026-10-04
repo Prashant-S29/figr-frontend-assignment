@@ -113,10 +113,12 @@ function start(): void {
     }
   }
 
-  /** Accepts only this document's bootstrap from its actual parent, then replaces the private connection. */
+  /** Routes only connect attempts from the actual parent; unrelated window traffic cannot replace or fail the private connection. */
   function connect(event: Event): void {
     const input = event as MessageEvent<unknown>;
     if (input.source !== window.parent) return;
+    const data = input.data;
+    if (typeof data !== "object" || data === null || !("type" in data) || data.type !== "connect") return;
     if (!isConnect(input.data) || input.data.instanceId !== instanceId || input.ports.length !== 1) throw new Error("Invalid agent bootstrap");
     if (port) native.portClose.call(port);
     geometry.reset();

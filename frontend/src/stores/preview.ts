@@ -107,9 +107,11 @@ export function createPreview(screen: Screen, parent: Scope, intents: PreviewInt
   }
   /** Turns a current-port structured-clone failure into a preview failure. */
   function deserializeError(): void { throw new Error("Could not deserialize agent message"); }
-  /** Accepts discovery only from this iframe and its allowed origin, never from a URL-sharing sibling. */
+  /** Routes only hello discovery from this iframe and origin; unrelated page/devtools messages cannot fail or replace the preview. */
   function hello(input: MessageEvent<unknown>): void {
     if (!frame || input.source !== frame.contentWindow || input.origin !== origin || blocked || region.getSnapshot().failure) return;
+    const data = input.data;
+    if (typeof data !== "object" || data === null || !("type" in data) || data.type !== "hello") return;
     if (!isHello(input.data)) throw new Error("Invalid preview hello");
     if (input.data.instanceId === snapshot.instanceId) return;
     disconnect();

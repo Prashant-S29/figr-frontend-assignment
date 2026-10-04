@@ -151,6 +151,35 @@ test("Interact navigation clears the preview selection and old Layers without re
 test("regional failures report exactly once and cancelled requests report nothing", async ({ page }) => {
   await openBoard(page);
   await selectPrimary(page);
+  const originalInstance = await page.getByTestId("preview-scr-01").getAttribute("data-instance-id");
+  const selectedIds = await page.getByTestId("board").getAttribute("data-selected-ids");
+  const noise = [null, "unrelated-message", [], { source: "react-devtools-content-script", payload: { event: "click" } }, { type: "extension-message" }, { type: "ping", requestId: 1 }];
+  await page.evaluate(
+    /** Sends unrelated parent traffic over the public window bus, never the authenticated private protocol. */
+    messages => {
+      for (const iframe of document.querySelectorAll("iframe")) {
+        for (const message of messages) iframe.contentWindow!.postMessage(message, new URL(iframe.src).origin);
+      }
+    }, noise,
+  );
+  const frame = await previewFrame(page, "scr-01");
+  await frame.evaluate(
+    /** Sends unrelated traffic from the real child source to test discovery routing independently of source authentication. */
+    ({ messages, origin }) => {
+      for (const message of messages) window.parent.postMessage(message, origin);
+    }, { messages: noise, origin: new URL(page.url()).origin },
+  );
+  // Window postMessage delivery is asynchronous; observe beyond delivery before asserting the absence of reports/fallbacks.
+  await page.waitForTimeout(500);
+  await expect(page.locator('[data-connection="ready"]')).toHaveCount(24);
+  await expect(page.locator(".region-error")).toHaveCount(0);
+  await expect(page.getByTestId("board")).toHaveAttribute("data-selected-ids", selectedIds!);
+  await expect(page.getByTestId("preview-scr-01")).toHaveAttribute("data-instance-id", originalInstance!);
+  expect(await reports(page)).toBe(4);
+  await pointAt(page, frame.locator("h1"));
+  await expect(page.getByTestId("live-name")).toHaveText("h1");
+  await expect(page.locator(".layers-row.is-selected .layers-name")).toHaveText("h1");
+  await selectPrimary(page);
   const cases = [
     ["details-bad-json", "details", "details / scr-01 / cta-primary", "details-retry-fail"],
     ["layers-row-timeout", "layers-row", "layers-row / scr-01", "layers-row-retry-fail"],
@@ -182,6 +211,30 @@ test("regional failures report exactly once and cancelled requests report nothin
     function reportTotal() { return reports(page); }
     await expect.poll(reportTotal).toBe(count + (region === "board" ? 6 : 2));
     await selectPrimary(page);
+  }
+  for (const type of ["connect", "hello"] as const) {
+    await selectPrimary(page);
+    const count = await reports(page);
+    if (type === "connect") {
+      await page.evaluate(
+        /** A malformed actual connect attempt must still fail, unlike unrelated public traffic. */
+        () => {
+          const iframe = document.querySelector<HTMLIFrameElement>('[data-testid="iframe-scr-01"]')!;
+          iframe.contentWindow!.postMessage({ type: "connect", instanceId: "invalid", mode: "select" }, new URL(iframe.src).origin);
+        },
+      );
+    } else {
+      await (await previewFrame(page, "scr-01")).evaluate(
+        /** A malformed actual hello from the authenticated child must still fail discovery validation. */
+        origin => window.parent.postMessage({ type: "hello", instanceId: "invalid" }, origin), new URL(page.url()).origin,
+      );
+    }
+    await expect(page.getByTestId("preview-scr-01-error")).toContainText(type === "connect" ? "Invalid agent bootstrap" : "Invalid preview hello");
+    await occurrence(page, "preview / scr-01", count + 1);
+    await expect(page.locator('[data-connection="ready"]')).toHaveCount(23);
+    await page.getByTestId("preview-scr-01-retry").click();
+    await expect(page.locator('[data-connection="ready"]')).toHaveCount(24);
+    expect(await reports(page)).toBe(count + 1);
   }
   for (const trigger of ["details-late-response", "details-late-error", "details-gone-response", "details-gone-error"]) {
     await selectPrimary(page);

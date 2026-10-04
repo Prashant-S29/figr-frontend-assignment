@@ -3,8 +3,8 @@
 Update at the start and end of every milestone, and whenever a decision, gate or limitation appears. Keep entries short and factual.
 
 ## Now
-- **Current milestone:** M11 (not started); M0–M10 are done
-- **Next action:** M11 deliverables only: submission README, video outline and optional deployment. No unresolved M10 requirement defect.
+- **Current milestone:** M11 (not started); M10 post-acceptance bootstrap fix verified
+- **Next action:** resolve scope approval for the owner's requested host-only dark-mode enhancement (PRD currently excludes theming); M11 deliverables remain unstarted.
 
 ## Milestones
 | ID | Name | Status | Verified (what, when) |
@@ -19,7 +19,7 @@ Update at the start and end of every milestone, and whenever a decision, gate or
 | M7 | Layers: tree and sync | done | 2026-10-03: final typecheck/build and 30 unit checks passed; Chrome/Firefox M7 gate passed (`2 passed`, 34.2s): lazy rows, one in-flight request, 3s row timeout/Retry, bidirectional sync, ~30-level Page 5 reveal, page-only scrolling, arrow navigation and isolated row/whole-Layers failures. M6–M3 browser regressions passed both browsers. | |
 | M8 | Layers: persistence, live updates, search | done | 2026-10-03: final typecheck/build and 34 unit checks pass; M8 acceptance/lifecycle probes and M7–M3 regressions pass Chrome/Firefox; Chrome development smoke passes. Implementation `81c05b6`; agent regeneration leaves git clean. |
 | M9 | Failure matrix | done | 2026-10-03: matrix passes Chrome/Firefox (72 expected reports each), latest expanded lifetime probes pass both, M8–M3 regressions pass both, development smoke and final typecheck/build/34 unit checks pass. Implementation `2065eb6`; agent regeneration leaves git clean. |
-| M10 | Verification and hardening | done | 2026-10-04: exactly five submission checks pass Chrome/Firefox locally and on a clean clone via npm start (10 passed each); full M3–M9 and lifecycle regressions pass both, keyboard/Docs edge cases pass both, dev smoke passes. Final typecheck/build/34 unit checks pass. 24-preview performance observed in both browsers; limitations recorded. Implementation 15f277f. |
+| M10 | Verification and hardening | done | Post-acceptance public-window noise fix verified: five tests pass both browsers on 127.0.0.1 and localhost (10 passed each), strict actual-bootstrap/private validation retained. Prior acceptance: 2026-10-04: exactly five submission checks pass Chrome/Firefox locally and on a clean clone via npm start (10 passed each); full M3–M9 and lifecycle regressions pass both, keyboard/Docs edge cases pass both, dev smoke passes. Final typecheck/build/34 unit checks pass. 24-preview performance observed in both browsers; limitations recorded. Implementation 15f277f. |
 | M11 | Deliverables | not started | |
 
 Status values: `not started`, `in progress`, `blocked`, `done`.
@@ -57,7 +57,7 @@ Append only. Anything that changes a PRD `D*` item, the protocol, or adds a depe
 ## Known limitations
 Feeds the README "where this breaks". Add as discovered: what breaks, when, and why.
 
-_No unresolved M1–M10 requirement/gate defects found in the completed checks. Remaining caveats below are deliberate identity semantics, native browser behavior and measured performance limits, not guarantees outside the verified fixtures/environment._
+_No unresolved reproduced requirement defect remains. The post-acceptance unrelated-window-traffic failure is fixed and covered by the existing fifth E2E check. Remaining caveats below are deliberate identity semantics, native browser behavior and measured performance limits._
 
 - Native Interact scrolling follows the browser's gesture rules: Firefox can latch a wheel transaction to the nested container for 1500ms, so outward chaining at its boundary requires a new gesture. Select-mode emulation consumes the remainder immediately. This is native browser behavior, not an overlay fallback.
 
@@ -127,6 +127,10 @@ One line per working session: what changed, what is next.
 - 2026-10-04: M10 resumed after owner approved matching upstream R4.8. Layers ↑/↓ now routes through row selection (replacing multi-selection and updating Inspector); horizontal arrows remain focus/expansion-only. All five submission checks pass Chrome/Firefox (10 passed, 4.0m), including deep multi→single arrows. Native Chrome exploratory repro now selects p and updates Live; expanded boundary/search/Interact keyboard pass also passes both (2 passed, 1.0m). M3 and M4 regressions pass both; remaining regressions, clean-clone and performance checks continue. Initial regression setup had competing tooling sessions, then a transient CLI mouse-up failure; doctor passed and the unchanged M3 probe passed on full restart. No product assertions weakened.
 
 - 2026-10-04: M10 completed. Clean clone of 15f277f: npm ci (0 vulnerabilities), typecheck, 34 unit checks and the five Chrome/Firefox E2E checks via npm start pass (10 passed, 3.3m); clone stays clean. Final working-tree typecheck/build/34 unit checks/E2E also pass (10 passed, 3.3m). Full M3–M9/browser lifecycle regressions, keyboard boundaries/search/Interact and Docs next/back/hash pass both; Vite dev smoke and native arrow repro pass. 24-preview Chrome/Firefox performance observations and honest jank/identity/native caveats recorded below. No dependency/protocol/agent/protected-input changes. M11 not started.
+
+- 2026-10-04: Owner reported red Invalid agent bootstrap fallback on clicks at http://127.0.0.1:5173/. Clean Chrome selects h1 normally; sending unrelated parent-window data to that iframe reproduces the exact fallback. Agent currently validates every parent window message as connect; host similarly validates every matching child message as hello. Reopening M10 to route only public hello/connect types before shape validation, preserving strict real-bootstrap/private-port checks; no wire-shape/dependency change. Repeated 24/6 pages and four native Docs reports are required, not bugs. Dark-mode request is a separate proposed enhancement because PRD currently excludes theming. Screenshot /tmp/figr-click-bootstrap-before.png.
+
+- 2026-10-04: M10 bootstrap bug fixed. Public window handlers now route only connect/hello attempts before shape validation, ignoring unrelated parent/child traffic without replacing ports or reporting. Native Chrome on 127.0.0.1 reproduces failure before fix and preserves h1 selection/Live/all 24 ready afterward (/tmp/figr-click-bootstrap-before.png and -after.png). Existing fifth E2E now covers unrelated messages in both directions and strict malformed actual connect/hello failures with exact-once Retry. Typecheck/build/34 unit checks pass; all five E2Es pass Chrome/Firefox on 127.0.0.1 (10 passed, 3.9m) and localhost (10 passed, 4.4m). Initial external dev server exited mid-run (7 passed then connection-refused), so verification restarted fully with runner-owned production servers; no assertions weakened. Backend/page HTML/protocol/dependencies unchanged; agent bundle regenerated. Dark mode remains separate pending scope approval.
 
 ## M0 verification evidence
 
