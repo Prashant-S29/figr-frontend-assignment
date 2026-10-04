@@ -605,15 +605,15 @@ export function createLayers(
     selection.hover(snapshot.screenId, node ?? null, "layers");
   }
 
-  /** Moves tree focus or expands/collapses according to the PRD's panel arrow-key model. */
+  /** Replaces selection on vertical arrows; horizontal arrows move focus or expand/collapse without selecting. */
   function key(key: string): void {
     const projection = relations();
     const visible = visibleTreeRows(projection);
     if (!visible.length) return;
     const index = Math.max(0, visible.findIndex(row => row.elementId === snapshot.focusedId));
     const currentId = visible[index].elementId;
-    if (key === "ArrowDown") publish({ ...snapshot, focusedId: visible[Math.min(index + 1, visible.length - 1)].elementId });
-    else if (key === "ArrowUp") publish({ ...snapshot, focusedId: visible[Math.max(index - 1, 0)].elementId });
+    if (key === "ArrowDown") selectRow(visible[Math.min(index + 1, visible.length - 1)].elementId, false);
+    else if (key === "ArrowUp") selectRow(visible[Math.max(index - 1, 0)].elementId, false);
     else if (key === "ArrowRight") {
       const node = (snapshot.query ? searchTree(snapshot.searchPaths).nodes : snapshot.nodes).get(currentId);
       if (!node?.hasChildren) return;

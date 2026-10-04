@@ -92,7 +92,7 @@ Terms. **Preview**: one iframe on the board. **Element**: any element in a previ
 - 4.5 Selection sync both ways. Clicking a row selects it. Selecting an element in the preview expands every ancestor of its row (loading as needed, many levels deep), highlights the row, and scrolls the panel to it.
 - 4.6 Clicking a row whose element is out of view scrolls **only that page** to show it. The board and host page do not move.
 - 4.7 Shift+click on a row adds/removes it; all selected rows are highlighted.
-- 4.8 Panel focused: **↑/↓** previous/next visible row; **→** expands, or moves to first child if already expanded; **←** collapses, or moves to parent if already collapsed.
+- 4.8 Panel focused: **↑/↓** select the previous/next visible row, replacing the selection (owner-approved M10 correction to match the upstream brief); **→** expands, or moves to first child if already expanded; **←** collapses, or moves to parent if already collapsed.
 - 4.9 Expanded rows and panel scroll position are remembered **per preview**. Switching A→B→A restores A exactly, until A's page navigates or the board reloads.
 - 4.10 When the page changes its own DOM, the tree updates: surviving rows keep expanded state and selection; removed rows disappear (a removed hovered row clears hover); rows the user is looking at don't jump (scroll position holds).
 - 4.11 Search box: shows only rows whose name contains the text, plus their ancestors. Searches the **whole tree**, including never-loaded rows. Clearing restores exactly the expanded state from before the search. Selecting a result selects the element and keeps the search open.

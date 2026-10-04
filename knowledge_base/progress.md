@@ -3,8 +3,8 @@
 Update at the start and end of every milestone, and whenever a decision, gate or limitation appears. Keep entries short and factual.
 
 ## Now
-- **Current milestone:** M10 (not started); M0–M9 are done
-- **Next action:** implement exactly the five PRD §8 product E2E checks, then perform the full manual/performance verification (M10 only)
+- **Current milestone:** M10 (in progress); M0–M9 are done
+- **Next action:** verify the owner-approved R4.8 arrow-selection correction, then finish full E2E/manual/performance verification (M10 only)
 
 ## Milestones
 | ID | Name | Status | Verified (what, when) |
@@ -19,7 +19,7 @@ Update at the start and end of every milestone, and whenever a decision, gate or
 | M7 | Layers: tree and sync | done | 2026-10-03: final typecheck/build and 30 unit checks passed; Chrome/Firefox M7 gate passed (`2 passed`, 34.2s): lazy rows, one in-flight request, 3s row timeout/Retry, bidirectional sync, ~30-level Page 5 reveal, page-only scrolling, arrow navigation and isolated row/whole-Layers failures. M6–M3 browser regressions passed both browsers. | |
 | M8 | Layers: persistence, live updates, search | done | 2026-10-03: final typecheck/build and 34 unit checks pass; M8 acceptance/lifecycle probes and M7–M3 regressions pass Chrome/Firefox; Chrome development smoke passes. Implementation `81c05b6`; agent regeneration leaves git clean. |
 | M9 | Failure matrix | done | 2026-10-03: matrix passes Chrome/Firefox (72 expected reports each), latest expanded lifetime probes pass both, M8–M3 regressions pass both, development smoke and final typecheck/build/34 unit checks pass. Implementation `2065eb6`; agent regeneration leaves git clean. |
-| M10 | Verification and hardening | not started | |
+| M10 | Verification and hardening | in progress | Five E2E checks implemented; initial deep reveal/navigation/failure checks pass both browsers; corrected disabled-name/live-feed fixtures pass both. Full acceptance remains pending. |
 | M11 | Deliverables | not started | |
 
 Status values: `not started`, `in progress`, `blocked`, `done`.
@@ -52,6 +52,8 @@ Append only. Anything that changes a PRD `D*` item, the protocol, or adds a depe
 
 | 16 | 2026-10-03 | Owner approved private `tree-watch { parentElementIds }` replaces the exact subscribed loaded-parent set (null = body); `tree-update { levels: [{ parentElementId, children }] }` replaces changed subscribed levels after reconciliation; correlated `tree-search { requestId, query }` / `tree-search-result { requestId, paths }` returns matching body-relative paths across the whole tree | R4.10 requires mutation-driven updates to loaded rows and R4.11 requires searching never-loaded DOM; subscriptions preserve lazy loading and search remains a derived host view with literal expansion restoration | Whole-tree eager snapshots; timer DOM scans; recursive host requests for search | M8 |
 
+| 17 | 2026-10-03 | Owner approved correcting PRD R4.8 to match the upstream brief: Layers ↑/↓ replace selection with the previous/next visible row; →/← keep their expand/collapse/focus semantics | Manual M10 Chrome pass showed focus moving to p while selection/Live remained div.actions; the brief explicitly requires vertical-arrow selection | Keeping focus-only as an intentional deviation | M10 |
+
 ## Known limitations
 Feeds the README "where this breaks". Add as discovered: what breaks, when, and why.
 
@@ -62,7 +64,7 @@ _No unresolved M1–M9 gate defects found in the completed checks. Formal submis
 - Chrome quantizes native iframe-local wheel coordinates to CSS pixels. Pointer-centred zoom uses that native coordinate; at fractional transforms it can differ from an unrounded CDP tooling coordinate by up to one iframe-local pixel. Browser probes verify the actual native anchor and bound that rounding, rather than assuming fractional CDP input survives unchanged.
 
 ## Open questions for the owner
-_None._
+_None. Owner approved matching upstream R4.8; correction is being verified._
 
 ## Session log
 One line per working session: what changed, what is next.
@@ -113,6 +115,12 @@ One line per working session: what changed, what is next.
 - 2026-10-03: M9 verification finished. Final matrix passes both browsers at exactly 72 reports each; expanded lifetime probes prove hidden-child cancellation, stale global attribution, obsolete same-region bodies and armed child faults stay silent after teardown. M8–M3 regressions and Chrome dev smoke pass. Final typecheck/build/34 unit tests/protected-input checks pass; no agent/protocol/dependency edits. Preparing milestone commits and clean-tree confirmation.
 
 - 2026-10-03: M9 completed in `2065eb6`. Full regional/source/Retry matrix, stale/gone/hidden-child probes and all M8–M3 regressions pass Chrome/Firefox; Vite development smoke and final typecheck/build/34 unit checks pass. Regenerating the agent after commit leaves git clean. No protocol/dependency/protected-backend changes. Verification servers and owned browser sessions were stopped. Next: M10 only.
+
+- 2026-10-03: M10 started at owner request. Implementing exactly five committed product E2E checks, followed by fresh-clone Chrome/Firefox execution, full R-item browser verification and 24-preview performance observations. No new features, dependencies or protocol changes planned.
+
+- 2026-10-03: M10 added exactly five production E2E tests. Initial run: deep reveal/navigation/regional failures pass both browsers (6 passed); test-only disabled-name and natural feed target races corrected, targeted rerun passes both (4 passed). Typecheck and 34 unit checks pass. Manual Chrome found an upstream/PRD R4.8 discrepancy: arrow keys move focus without selection. Paused for owner clarification per rules; screenshot `/tmp/figr-m10/arrow-selection-conflict.png`. Full acceptance/performance/clean-clone verification not yet complete.
+
+- 2026-10-04: M10 resumed after owner approved matching upstream R4.8. Layers ↑/↓ now routes through row selection (replacing multi-selection and updating Inspector); horizontal arrows remain focus/expansion-only. All five submission checks pass Chrome/Firefox (10 passed, 4.0m), including deep multi→single arrows. Native Chrome exploratory repro now selects p and updates Live; expanded boundary/search/Interact keyboard pass also passes both (2 passed, 1.0m). M3 and M4 regressions pass both; remaining regressions, clean-clone and performance checks continue. Initial regression setup had competing tooling sessions, then a transient CLI mouse-up failure; doctor passed and the unchanged M3 probe passed on full restart. No product assertions weakened.
 
 ## M0 verification evidence
 
