@@ -57,7 +57,7 @@ Terms. **Preview**: one iframe on the board. **Element**: any element in a previ
 ### R1 Board
 
 - 1.1 Fetch `GET /screens`; show every screen as a 1280×800 preview in a grid, screen name above.
-- 1.2 Dragging empty board space pans. Wheel over empty board space pans.
+- 1.2 Dragging empty board space pans. Wheel over empty board space pans. Native host text selection is disabled on the board so dragging screen names/tiles cannot leave blue/grey browser highlights (owner-requested M10 correction); native iframe text selection in Interact is unchanged.
 - 1.3 Ctrl/Cmd+wheel zooms 25%–400%, centred on the pointer, **anywhere, including over a preview**.
 - 1.4 Wheel over a preview scrolls that page, in both modes.
 - 1.5 Mode toggle in the toolbar plus keys **V** (Select, default) and **I** (Interact).
@@ -76,7 +76,7 @@ Terms. **Preview**: one iframe on the board. **Element**: any element in a previ
 
 - 3.1 Click selects the element under the pointer: **2px outline**, different colour from hover, plus a label.
 - 3.2 Shift+click adds/removes an element in the same preview. Shift+click in a different preview **replaces** the selection with that element.
-- 3.3 **Escape**, clicking page background, or clicking empty board space clears the selection.
+- 3.3 **Escape**, clicking page background, or clicking empty board space clears the selection. Escape also removes any existing native host-document text range without inspecting or changing iframe text ranges (owner-requested M10 correction).
 - 3.4 Outlines and labels: stay glued to their element through pan, zoom, scrolling inside the page (including inner scroll areas), window resize, and the element changing size or moving; stay 1px/2px with constant label size at every zoom; are clipped to the preview's edges (an element scrolled fully out of view has no outline but stays selected); put the label **below** the element when there is no room above inside the preview.
 - 3.5 Keyboard, acting on the **most recently selected** element and replacing the selection with the result: **Enter** selects the first child; **Shift+Enter** selects the parent (nothing at top level, i.e. children of `<body>`); **Tab / Shift+Tab** select next/previous sibling, wrapping.
 - 3.6 **All shortcuts** (V, I, Escape, Enter, Tab, …) work even right after the user clicked inside a preview.
@@ -119,6 +119,11 @@ Terms. **Preview**: one iframe on the board. **Element**: any element in a previ
 - 6.6 A response or error arriving after its region is gone changes nothing and reports nothing.
 - 6.7 A **dev-only menu** triggers each failure above on demand (for the video). Visible only with `?dev` or in dev mode.
 
+### R7 Host theme (owner-approved enhancement E1)
+
+- 7.1 A toolbar theme toggle switches the host dashboard between Light and Dark, including the board background/names, toolbar, Layers, Inspector, error/Retry surfaces and dev diagnostics. Light is the default; no system-auto mode or persistence across reload.
+- 7.2 Theme changes do not recolour or modify iframe documents, reload/remount previews, change mode/pan/zoom/selection, clear tree memory, restart requests or reports, or affect regional Retry behavior. No new dependency or host↔agent message is needed.
+
 ## 5. Resolved ambiguities
 
 Also written into the README ("ambiguities" section).
@@ -135,7 +140,7 @@ Also written into the README ("ambiguities" section).
 
 ## 6. Non-goals
 
-Editing pages, persistence across reload (not even viewport), auth, mobile, multi-user, SSR, theming, animations, list virtualization, internationalization, accessibility work beyond the required keyboard behaviour, any change to `server.js` or page content beyond the one script tag.
+Editing pages, persistence across reload (not even viewport), auth, mobile, multi-user, SSR, preview-page theming (host theme R7 is the owner-approved exception), animations, list virtualization, internationalization, accessibility work beyond the required keyboard behaviour, any change to `server.js` or page content beyond the one script tag.
 
 ## 7. Deliverables
 

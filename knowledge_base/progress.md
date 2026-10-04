@@ -3,8 +3,8 @@
 Update at the start and end of every milestone, and whenever a decision, gate or limitation appears. Keep entries short and factual.
 
 ## Now
-- **Current milestone:** M11 (not started); M10 post-acceptance bootstrap fix verified
-- **Next action:** resolve scope approval for the owner's requested host-only dark-mode enhancement (PRD currently excludes theming); M11 deliverables remain unstarted.
+- **Current milestone:** E1 host theme (not started); M10 fixes verified
+- **Next action:** implement the owner-approved dashboard Light/Dark toggle without touching iframe styling/state. M11 deliverables remain unstarted.
 
 ## Milestones
 | ID | Name | Status | Verified (what, when) |
@@ -19,7 +19,8 @@ Update at the start and end of every milestone, and whenever a decision, gate or
 | M7 | Layers: tree and sync | done | 2026-10-03: final typecheck/build and 30 unit checks passed; Chrome/Firefox M7 gate passed (`2 passed`, 34.2s): lazy rows, one in-flight request, 3s row timeout/Retry, bidirectional sync, ~30-level Page 5 reveal, page-only scrolling, arrow navigation and isolated row/whole-Layers failures. M6–M3 browser regressions passed both browsers. | |
 | M8 | Layers: persistence, live updates, search | done | 2026-10-03: final typecheck/build and 34 unit checks pass; M8 acceptance/lifecycle probes and M7–M3 regressions pass Chrome/Firefox; Chrome development smoke passes. Implementation `81c05b6`; agent regeneration leaves git clean. |
 | M9 | Failure matrix | done | 2026-10-03: matrix passes Chrome/Firefox (72 expected reports each), latest expanded lifetime probes pass both, M8–M3 regressions pass both, development smoke and final typecheck/build/34 unit checks pass. Implementation `2065eb6`; agent regeneration leaves git clean. |
-| M10 | Verification and hardening | done | Post-acceptance public-window noise fix verified: five tests pass both browsers on 127.0.0.1 and localhost (10 passed each), strict actual-bootstrap/private validation retained. Prior acceptance: 2026-10-04: exactly five submission checks pass Chrome/Firefox locally and on a clean clone via npm start (10 passed each); full M3–M9 and lifecycle regressions pass both, keyboard/Docs edge cases pass both, dev smoke passes. Final typecheck/build/34 unit checks pass. 24-preview performance observed in both browsers; limitations recorded. Implementation 15f277f. |
+| M10 | Verification and hardening | done | Native board highlight/Escape cleanup verified in both browsers; Interact iframe text selection remains native (2 passed); all five E2Es pass both (10 passed, 4.3m). Post-acceptance public-window noise fix verified: five tests pass both browsers on 127.0.0.1 and localhost (10 passed each), strict actual-bootstrap/private validation retained. Prior acceptance: 2026-10-04: exactly five submission checks pass Chrome/Firefox locally and on a clean clone via npm start (10 passed each); full M3–M9 and lifecycle regressions pass both, keyboard/Docs edge cases pass both, dev smoke passes. Final typecheck/build/34 unit checks pass. 24-preview performance observed in both browsers; limitations recorded. Implementation 15f277f. |
+| E1 | Host theme toggle (owner-approved enhancement) | not started | Runs after all M10 fixes and before M11; iframe pages unchanged. |
 | M11 | Deliverables | not started | |
 
 Status values: `not started`, `in progress`, `blocked`, `done`.
@@ -54,10 +55,12 @@ Append only. Anything that changes a PRD `D*` item, the protocol, or adds a depe
 
 | 17 | 2026-10-03 | Owner approved correcting PRD R4.8 to match the upstream brief: Layers ↑/↓ replace selection with the previous/next visible row; →/← keep their expand/collapse/focus semantics | Manual M10 Chrome pass showed focus moving to p while selection/Live remained div.actions; the brief explicitly requires vertical-arrow selection | Keeping focus-only as an intentional deviation | M10 |
 
+| 18 | 2026-10-04 | Owner approved a separate host Light/Dark theme toggle after bug fixes, before M11; iframe documents stay unchanged. Light default, no reload persistence or new dependencies | Owner requested a dashboard theme toggler and explicitly said to skip iframes; PRD theming non-goal must be narrowed to preview theming | Recolouring fixed iframe pages, CSS inversion filters, system-auto theme or persistence not requested | E1 |
+
 ## Known limitations
 Feeds the README "where this breaks". Add as discovered: what breaks, when, and why.
 
-_No unresolved reproduced requirement defect remains. The post-acceptance unrelated-window-traffic failure is fixed and covered by the existing fifth E2E check. Remaining caveats below are deliberate identity semantics, native browser behavior and measured performance limits._
+_No unresolved reproduced requirement defect remains. Native host board highlighting/Escape cleanup and the unrelated-window-traffic bootstrap failure are fixed and covered in the existing E2Es. Native iframe text selection in Interact deliberately remains available. Remaining caveats below are deliberate identity semantics, native browser behavior and measured performance limits._
 
 - Native Interact scrolling follows the browser's gesture rules: Firefox can latch a wheel transaction to the nested container for 1500ms, so outward chaining at its boundary requires a new gesture. Select-mode emulation consumes the remainder immediately. This is native browser behavior, not an overlay fallback.
 
@@ -131,6 +134,10 @@ One line per working session: what changed, what is next.
 - 2026-10-04: Owner reported red Invalid agent bootstrap fallback on clicks at http://127.0.0.1:5173/. Clean Chrome selects h1 normally; sending unrelated parent-window data to that iframe reproduces the exact fallback. Agent currently validates every parent window message as connect; host similarly validates every matching child message as hello. Reopening M10 to route only public hello/connect types before shape validation, preserving strict real-bootstrap/private-port checks; no wire-shape/dependency change. Repeated 24/6 pages and four native Docs reports are required, not bugs. Dark-mode request is a separate proposed enhancement because PRD currently excludes theming. Screenshot /tmp/figr-click-bootstrap-before.png.
 
 - 2026-10-04: M10 bootstrap bug fixed. Public window handlers now route only connect/hello attempts before shape validation, ignoring unrelated parent/child traffic without replacing ports or reporting. Native Chrome on 127.0.0.1 reproduces failure before fix and preserves h1 selection/Live/all 24 ready afterward (/tmp/figr-click-bootstrap-before.png and -after.png). Existing fifth E2E now covers unrelated messages in both directions and strict malformed actual connect/hello failures with exact-once Retry. Typecheck/build/34 unit checks pass; all five E2Es pass Chrome/Firefox on 127.0.0.1 (10 passed, 3.9m) and localhost (10 passed, 4.4m). Initial external dev server exited mid-run (7 passed then connection-refused), so verification restarted fully with runner-owned production servers; no assertions weakened. Backend/page HTML/protocol/dependencies unchanged; agent bundle regenerated. Dark mode remains separate pending scope approval.
+
+- 2026-10-04: Owner approved dashboard-only Light/Dark theme toggler, explicitly excluding iframes. Separately reported blue/grey native browser selection across board tiles persisting after Escape. M10 reopened for board-only user-select suppression and host-range Escape cleanup, keeping native Interact iframe text selection intact. Theme enhancement E1 will follow only after this fix verifies; no page/protocol/dependency changes planned.
+
+- 2026-10-04: M10 native range fix verified: board-only user-select suppression prevents screen-name/tile drag highlights, and Escape clears existing host ranges via the guarded shortcut path. Native Chrome (agent-browser) and Firefox drags prove Interact page text still selects and survives native Escape unchanged (2 passed, 19.6s). Existing first E2E covers board drag/range cleanup; all five product E2Es pass both (10 passed, 4.3m), typecheck/build and 34 unit checks pass. Temporary probe discovery initially scanned a protected /tmp directory; narrowing its own testDir fixed tooling without changing assertions. Artifacts /tmp/figr-native-selection-*.png. E1 implementation has not started.
 
 ## M0 verification evidence
 

@@ -5,6 +5,26 @@ import { occurrence, openBoard, pointAt, previewFrame, reports, selectPrimary, s
 /** Disabled controls remain inspectable while Select input never activates or focuses the page. */
 test("disabled submit can be hovered and selected without page action", async ({ page }) => {
   await openBoard(page);
+  const title = await page.getByTestId("screen-name-scr-01").boundingBox();
+  await page.mouse.move(title!.x + 1, title!.y + title!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(title!.x + title!.width - 1, title!.y + title!.height / 2, { steps: 5 });
+  await page.mouse.up();
+  /** Observes only the host's browser-native selection, not the agent's viewer selection or any iframe range. */
+  function hostSelection() { const value = window.getSelection(); return { text: value?.toString() ?? "", count: value?.rangeCount ?? 0 }; }
+  expect((await page.evaluate(hostSelection)).text).toBe("");
+  await page.evaluate(
+    /** Represents a preexisting native host highlight without touching an iframe document. */
+    () => {
+      const range = document.createRange();
+      range.selectNodeContents(document.querySelector('[data-testid="screen-name-scr-01"]')!);
+      window.getSelection()!.removeAllRanges();
+      window.getSelection()!.addRange(range);
+    },
+  );
+  expect((await page.evaluate(hostSelection)).count).toBe(1);
+  await page.keyboard.press("Escape");
+  expect((await page.evaluate(hostSelection)).count).toBe(0);
   await showPreview(page, "scr-02");
   const frame = await previewFrame(page, "scr-02");
   const submit = frame.locator('button[disabled]');

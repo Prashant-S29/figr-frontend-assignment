@@ -11,7 +11,7 @@ button { font: inherit; cursor: pointer; }
 .toolbar button[aria-pressed="true"] { background: #e0eaff; border-color: #2459c4; }
 .toolbar output { min-width: 46px; }
 .board-region { flex: 1; min-height: 0; position: relative; }
-.board { position: absolute; inset: 0; overflow: clip; background: #e8ecf2; touch-action: none; }
+.board { position: absolute; inset: 0; overflow: clip; background: #e8ecf2; touch-action: none; user-select: none; -webkit-user-select: none; }
 .board-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; display: grid; grid-template-columns: repeat(4, 1280px); gap: 80px; will-change: transform; }
 .board-loading { position: absolute; top: 20px; left: 40px; }
 .preview { width: 1280px; }

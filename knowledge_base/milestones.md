@@ -177,6 +177,20 @@ How to use this file:
 - Five tests pass on a clean clone via `npm start`.
 - The "known limitations" list is complete and honest.
 
+## E1 Host theme toggle (owner-approved enhancement)
+
+**Order:** after all M10 bug fixes are verified, before M11. Added at the owner's explicit dashboard-only theme request.
+**Goal:** a Light/Dark toggle for the host, with fixed iframe documents unchanged.
+**PRD:** R7.
+**Build:**
+
+- Plain TS theme owner and toolbar toggle, Light by default and no reload persistence.
+- Theme host surfaces/controls with plain CSS; no iframe recolouring, filters, new protocol or dependency.
+  **Done when:**
+- Both themes work in Chrome/Firefox for toolbar, board, Layers, Inspector, failures and dev UI.
+- Switching preserves all iframe instances/styles, selection, mode, viewport, tree state, pending requests and report count; regional Retry still works in Dark.
+- Typecheck/build/unit and the five unchanged-in-count product E2E checks pass; evidence is in progress.md.
+
 ## M11 Deliverables
 
 **Goal:** submission-ready.

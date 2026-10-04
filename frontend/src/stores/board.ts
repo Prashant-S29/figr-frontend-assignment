@@ -1,4 +1,4 @@
-// Owns screens, preview lifetimes and mode; selection, Layers and Inspector stores own inspection state while viewport owns motion.
+// Owns screens, preview lifetimes, mode and Escape's native host-range cleanup; inspection stores own viewer selection and viewport owns motion.
 import { attributeError } from "../core/fail";
 import type { AgentMessage, HostMessage, Mode } from "../../../shared/protocol";
 import type { ElementDetailsQuery } from "../api/elements";
@@ -80,9 +80,9 @@ export function createBoard(region: FailureRegion, dev: boolean) {
     update({ ...snapshot, mode: next });
     for (const preview of snapshot.previews) send(preview, { type: "mode", mode: next });
   }
-  /** Applies selection keys only in Select while preserving native Interact/editable letter behaviour. */
+  /** Applies Select shortcuts and clears native host ranges on Escape, preserving iframe Interact/editable behavior. */
   function shortcut(key: string, editable: boolean, modified: boolean, shift: boolean): boolean {
-    if (key === "Escape") { selection.clear(); return true; }
+    if (key === "Escape") { window.getSelection()?.removeAllRanges(); selection.clear(); return true; }
     if (snapshot.mode === "select" && !modified && (key === "Enter" || key === "Tab")) {
       selection.navigate(key === "Enter" ? shift ? "parent" : "child" : shift ? "previous" : "next");
       return true;
