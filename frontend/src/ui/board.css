@@ -1,23 +1,24 @@
 /* Styles the fixed-size preview grid and host toolbar; viewport motion, outlines and side-panel state are owned elsewhere. */
 * { box-sizing: border-box; }
 html, body, #root { width: 100%; height: 100%; margin: 0; }
-body { font: 14px/1.4 system-ui, sans-serif; color: #182230; overflow: hidden; }
+body { font: 14px/1.4 system-ui, sans-serif; color: var(--text); overflow: hidden; }
 #root { display: flex; flex-direction: column; }
-button { font: inherit; cursor: pointer; }
+button { font: inherit; cursor: pointer; color: var(--text); background: var(--control-bg); border: 1px solid var(--control-border); }
 .app { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.toolbar { flex: none; min-height: 56px; padding: 8px 20px; display: flex; align-items: center; gap: 20px; background: #fff; border-bottom: 1px solid #cdd5df; }
+.toolbar { flex: none; min-height: 56px; padding: 8px 20px; display: flex; align-items: center; gap: 20px; background: var(--surface); border-bottom: 1px solid var(--border); }
 .toolbar h1 { margin: 0; font-size: 18px; }
-.toolbar button { padding: 6px 12px; background: #fff; border: 1px solid #9aa4b2; }
-.toolbar button[aria-pressed="true"] { background: #e0eaff; border-color: #2459c4; }
+.toolbar button { padding: 6px 12px; background: var(--control-bg); border: 1px solid var(--control-border); }
+.toolbar button[aria-pressed="true"] { background: var(--active-bg); border-color: var(--accent); }
 .toolbar output { min-width: 46px; }
+.toolbar .theme-toggle { margin-left: auto; }
 .board-region { flex: 1; min-height: 0; position: relative; }
-.board { position: absolute; inset: 0; overflow: clip; background: #e8ecf2; touch-action: none; user-select: none; -webkit-user-select: none; }
+.board { position: absolute; inset: 0; overflow: clip; background: var(--board-bg); touch-action: none; user-select: none; -webkit-user-select: none; }
 .board-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; display: grid; grid-template-columns: repeat(4, 1280px); gap: 80px; will-change: transform; }
 .board-loading { position: absolute; top: 20px; left: 40px; }
 .preview { width: 1280px; }
 .preview-heading { height: 36px; display: flex; align-items: center; gap: 12px; }
 .preview-heading h2 { margin: 0; font-size: 18px; font-weight: 600; }
-.preview-surface { position: relative; width: 1280px; height: 800px; background: #fff; }
+.preview-surface { position: relative; width: 1280px; height: 800px; background: var(--surface); }
 .preview iframe { display: block; width: 1280px; height: 800px; border: 0; }
-.connecting { position: absolute; top: 8px; left: 8px; pointer-events: none; padding: 4px 8px; background: #f2f4f7; }
-.page-error { padding: 2px 6px; font-size: 12px; border: 1px solid #c4320a; border-radius: 4px; background: #fff4ed; color: #9c2a10; }
+.connecting { position: absolute; top: 8px; left: 8px; pointer-events: none; padding: 4px 8px; background: var(--soft-bg); }
+.page-error { padding: 2px 6px; font-size: 12px; border: 1px solid var(--badge-border); border-radius: 4px; background: var(--badge-bg); color: var(--badge-text); }

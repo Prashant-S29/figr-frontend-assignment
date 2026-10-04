@@ -1,0 +1,56 @@
+/* Scopes host palette tokens to the viewer surface; no filters, color-scheme changes or iframe page styles are applied. */
+:root {
+  --text: #182230;
+  --muted: #667085;
+  --surface: #ffffff;
+  --board-bg: #e8ecf2;
+  --border: #cdd5df;
+  --separator: #eef1f4;
+  --control-bg: #ffffff;
+  --control-border: #9aa4b2;
+  --active-bg: #e0eaff;
+  --accent: #2459c4;
+  --soft-bg: #f2f4f7;
+  --dev-bg: #f5f5f5;
+  --row-hover: #eef4ff;
+  --row-selected: #dce8ff;
+  --row-selected-hover: #c9dcff;
+  --error-bg: #fff4f4;
+  --error-border: #b42318;
+  --error-text: #7a271a;
+  --badge-bg: #fff4ed;
+  --badge-border: #c4320a;
+  --badge-text: #9c2a10;
+}
+.viewer {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+  background: var(--surface);
+}
+.layers, .inspector, .dev-menu, .region-error { scrollbar-color: var(--control-border) var(--surface); }
+.viewer[data-theme="dark"] {
+  --text: #e4e9f2;
+  --muted: #a6b2c5;
+  --surface: #202833;
+  --board-bg: #141b25;
+  --border: #3d4b5f;
+  --separator: #334155;
+  --control-bg: #293548;
+  --control-border: #64748b;
+  --active-bg: #263f68;
+  --accent: #8ab4ff;
+  --soft-bg: #2c384a;
+  --dev-bg: #19222e;
+  --row-hover: #2a3952;
+  --row-selected: #314f7b;
+  --row-selected-hover: #3d5e8e;
+  --error-bg: #382329;
+  --error-border: #fb8b80;
+  --error-text: #ffc6bf;
+  --badge-bg: #3d2a20;
+  --badge-border: #fd9b70;
+  --badge-text: #ffd2b9;
+}

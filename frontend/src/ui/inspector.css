@@ -1,12 +1,12 @@
 /* Styles the fixed Inspector and its isolated Details surface; request and selection state remain store-owned. */
 .workspace { flex: 1; min-height: 0; display: flex; }
 .workspace .board-region { flex: 1; min-width: 0; }
-.inspector { flex: 0 0 340px; min-width: 0; overflow: auto; padding: 16px; border-left: 1px solid #cdd5df; background: #fff; }
+.inspector { flex: 0 0 340px; min-width: 0; overflow: auto; padding: 16px; border-left: 1px solid var(--border); background: var(--surface); }
 .inspector > h2 { margin: 0 0 16px; font-size: 16px; }
 .inspector-section { margin-top: 18px; }
 .inspector-section h3 { margin: 0 0 10px; font-size: 14px; }
 .inspector-section dl { margin: 0; }
-.inspector-field { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 8px; padding: 5px 0; border-bottom: 1px solid #eef1f4; }
-.inspector-field dt { color: #667085; }
+.inspector-field { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--separator); }
+.inspector-field dt { color: var(--muted); }
 .inspector-field dd { min-width: 0; margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
 .inspector .region-error { min-height: 120px; height: auto; padding: 12px; }

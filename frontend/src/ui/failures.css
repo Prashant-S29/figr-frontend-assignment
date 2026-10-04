@@ -1,6 +1,6 @@
 /* Styles region-local failure surfaces and bounded dev diagnostics; product grid and viewport styling live separately. */
-.region-error { box-sizing: border-box; height: 100%; padding: 24px; background: #fff4f4; border: 1px solid #b42318; color: #7a271a; overflow: auto; overflow-wrap: anywhere; }
+.region-error { box-sizing: border-box; height: 100%; padding: 24px; background: var(--error-bg); border: 1px solid var(--error-border); color: var(--error-text); overflow: auto; overflow-wrap: anywhere; }
 .region-error button { padding: 6px 12px; }
-.dev-menu { flex: none; position: relative; z-index: 1; max-height: 45vh; overflow: auto; padding: 8px 20px; border-bottom: 1px solid #aaa; background: #f5f5f5; }
+.dev-menu { flex: none; position: relative; z-index: 1; max-height: 45vh; overflow: auto; padding: 8px 20px; border-bottom: 1px solid var(--border); background: var(--dev-bg); }
 .dev-menu button { margin: 4px; }
 .dev-menu ol { max-height: 160px; overflow: auto; }

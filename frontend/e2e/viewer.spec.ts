@@ -5,6 +5,30 @@ import { occurrence, openBoard, pointAt, previewFrame, reports, selectPrimary, s
 /** Disabled controls remain inspectable while Select input never activates or focuses the page. */
 test("disabled submit can be hovered and selected without page action", async ({ page }) => {
   await openBoard(page);
+  await expect(page.getByTestId("viewer-theme")).toHaveAttribute("data-theme", "light");
+  /** Reads preview document identities without allowing the theme test to mutate connection state. */
+  function instanceIds(elements: Element[]) { return elements.map(element => element.getAttribute("data-instance-id")); }
+  const instances = await page.locator(".preview").evaluateAll(instanceIds);
+  const landing = await previewFrame(page, "scr-01");
+  /** Observes actual iframe styling and media preference to detect accidental page recolouring. */
+  function pagePalette() {
+    const body = getComputedStyle(document.body);
+    return { color: body.color, background: body.backgroundColor, font: body.fontFamily, headingColor: getComputedStyle(document.querySelector("h1")!).color, darkPreference: matchMedia("(prefers-color-scheme: dark)").matches };
+  }
+  const previewPalette = await landing.evaluate(pagePalette);
+  /** Reads the host canvas colour rather than inferring a working theme from its button label alone. */
+  function boardColor(element: Element) { return getComputedStyle(element).backgroundColor; }
+  const lightColor = await page.getByTestId("board").evaluate(boardColor);
+  await page.getByTestId("theme-toggle").click();
+  await expect(page.getByTestId("viewer-theme")).toHaveAttribute("data-theme", "dark");
+  await expect(page.getByTestId("theme-toggle")).toHaveAttribute("aria-pressed", "true");
+  expect(await page.getByTestId("board").evaluate(boardColor)).not.toBe(lightColor);
+  expect(await landing.evaluate(pagePalette)).toEqual(previewPalette);
+  await page.getByTestId("theme-toggle").click();
+  await expect(page.getByTestId("viewer-theme")).toHaveAttribute("data-theme", "light");
+  expect(await page.getByTestId("board").evaluate(boardColor)).toBe(lightColor);
+  expect(await page.locator(".preview").evaluateAll(instanceIds)).toEqual(instances);
+  expect(await reports(page)).toBe(4);
   const title = await page.getByTestId("screen-name-scr-01").boundingBox();
   await page.mouse.move(title!.x + 1, title!.y + title!.height / 2);
   await page.mouse.down();
@@ -170,6 +194,8 @@ test("Interact navigation clears the preview selection and old Layers without re
 /** Exercises every fatal region's exact-once reporting, failed Retry generations, recovery and silent cancelled/gone completions. */
 test("regional failures report exactly once and cancelled requests report nothing", async ({ page }) => {
   await openBoard(page);
+  await page.getByTestId("theme-toggle").click();
+  await expect(page.getByTestId("viewer-theme")).toHaveAttribute("data-theme", "dark");
   await selectPrimary(page);
   const originalInstance = await page.getByTestId("preview-scr-01").getAttribute("data-instance-id");
   const selectedIds = await page.getByTestId("board").getAttribute("data-selected-ids");
@@ -214,10 +240,16 @@ test("regional failures report exactly once and cancelled requests report nothin
     await page.getByTestId(`dev-${trigger}`).click();
     const error = region === "layers-row" ? page.locator(".layers-tree .region-error") : page.getByTestId(`${region}-error`);
     await expect(error).toBeVisible({ timeout: 13_000 });
+    await expect(error).toHaveCSS("background-color", "rgb(56, 35, 41)");
     await expect(page.locator(".region-error")).toHaveCount(1);
     await occurrence(page, context, count + 1);
     if (region !== "board") await expect(page.locator('[data-connection="ready"]')).toHaveCount(region === "preview-scr-01" ? 23 : 24);
     if (["details", "layers-row", "layers"].includes(region)) await expect(page.getByTestId("live-name")).toHaveText("Get started");
+    await page.getByTestId("theme-toggle").click();
+    await expect(error).toHaveCSS("background-color", "rgb(255, 244, 244)");
+    await page.getByTestId("theme-toggle").click();
+    await expect(error).toHaveCSS("background-color", "rgb(56, 35, 41)");
+    expect(await reports(page)).toBe(count + 1);
     const retry = error.getByRole("button", { name: "Retry", exact: true });
     await page.getByTestId(`dev-${arm}`).click();
     await retry.click();
@@ -230,6 +262,7 @@ test("regional failures report exactly once and cancelled requests report nothin
     /** Includes each reloaded Docs document's expected rejection while excluding any duplicate failure reports. */
     function reportTotal() { return reports(page); }
     await expect.poll(reportTotal).toBe(count + (region === "board" ? 6 : 2));
+    await expect(page.getByTestId("viewer-theme")).toHaveAttribute("data-theme", "dark");
     await selectPrimary(page);
   }
   for (const type of ["connect", "hello"] as const) {
